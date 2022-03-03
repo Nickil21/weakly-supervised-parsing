@@ -1,0 +1,13 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[packages]
+pandas = "1.4.1"
+pytorch-lightning = "1.5.10"
+nltk = "3.7"
+transformers = "4.17.0"
+
+[requires]
+python_version = "3.9"
