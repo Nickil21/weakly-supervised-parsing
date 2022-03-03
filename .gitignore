@@ -129,14 +129,7 @@ dmypy.json
 .pyre/
 
 # Data Folder
-data/RAW/english/
-data/RAW/chinese/
-data/RAW/japanese/
-
-data/PROCESSED/english/
-data/PROCESSED/chinese/
-data/PROCESSED/japanese/
-
+data/
 
 # MAC stuff:
 .DS_Store

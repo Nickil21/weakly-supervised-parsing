@@ -28,7 +28,7 @@ Set the NLTK_DATA variable to allow nltk to find the corpora and resources you d
 
 Download the PTB 3.0 file:
 
-    wget http://bollin.inf.ed.ac.uk/public/direct/sandbox/ptb3.zip
+    wget http://bollin.inf.ed.ac.uk/public/direct/sandbox/ptb3.zip !! TO REMOVE THE LINK LATER
 
 Unzip the zip file, extract the contents inside the `data/` folder, and delete the original zip file:
 
@@ -39,7 +39,5 @@ Unzip the zip file, extract the contents inside the `data/` folder, and delete t
     mv ./data/RAW/english/original/ ./data/RAW/english/corpora/ptb/TEMP/
     mv ./data/RAW/english/corrected/ ./data/RAW/english/corpora/ptb/TEMP/
 
-
     python source/utils/process_ptb.py --ptb_path ./TEMP/corrected/parsed/mrg/wsj --output_path ./data/PROCESSED/english
-./TEMP/corrected/parsed/mrg/wsj
 
