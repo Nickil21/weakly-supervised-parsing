@@ -2,7 +2,9 @@ from typing import Optional
 
 import datasets
 import torch
+import torchmetrics
 from torch.utils.data import DataLoader
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer, seed_everything
 from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
 
@@ -42,10 +44,7 @@ class DataModule(LightningDataModule):
 
     def setup(self, stage: str):
        
-        self.dataset = datasets.load_dataset('csv', data_files='sample.csv')
-        
-        print(self.dataset['train'])
-        print(self.dataset.keys())
+        self.dataset = datasets.load_dataset('csv', data_files={'train': 'source/classifier/datasets/train.csv', 'validation': 'source/classifier/datasets/validation.csv'})
 
         for split in self.dataset.keys():
             self.dataset[split] = self.dataset[split].map(
@@ -59,23 +58,23 @@ class DataModule(LightningDataModule):
         self.eval_splits = [x for x in self.dataset.keys() if "validation" in x]
 
     def prepare_data(self):
-        datasets.load_dataset('csv', data_files='sample.csv')
+        datasets.load_dataset('csv', data_files={'train': 'source/classifier/datasets/train.csv', 'validation': 'source/classifier/datasets/validation.csv'})
         AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
 
     def train_dataloader(self):
-        return DataLoader(self.dataset["train"], batch_size=self.train_batch_size)
+        return DataLoader(self.dataset["train"], batch_size=self.train_batch_size, num_workers=16)
 
     def val_dataloader(self):
         if len(self.eval_splits) == 1:
-            return DataLoader(self.dataset["validation"], batch_size=self.eval_batch_size)
+            return DataLoader(self.dataset["validation"], batch_size=self.eval_batch_size, num_workers=16)
         elif len(self.eval_splits) > 1:
-            return [DataLoader(self.dataset[x], batch_size=self.eval_batch_size) for x in self.eval_splits]
+            return [DataLoader(self.dataset[x], batch_size=self.eval_batch_size, num_workers=16) for x in self.eval_splits]
 
     def test_dataloader(self):
         if len(self.eval_splits) == 1:
-            return DataLoader(self.dataset["test"], batch_size=self.eval_batch_size)
+            return DataLoader(self.dataset["test"], batch_size=self.eval_batch_size, num_workers=16)
         elif len(self.eval_splits) > 1:
-            return [DataLoader(self.dataset[x], batch_size=self.eval_batch_size) for x in self.eval_splits]
+            return [DataLoader(self.dataset[x], batch_size=self.eval_batch_size, num_workers=16) for x in self.eval_splits]
 
     def convert_to_features(self, example_batch, indices=None):
 
@@ -87,7 +86,7 @@ class DataModule(LightningDataModule):
 
         # Tokenize the text/text pairs
         features = self.tokenizer.batch_encode_plus(
-            texts_or_text_pairs, max_length=self.max_seq_length, pad_to_max_length=True, truncation=True
+            texts_or_text_pairs, max_length=self.max_seq_length, pad_to_max_length=True, truncation=True,
         )
 
         # Rename label to labels to make it easier to pass to model forward
@@ -116,7 +115,10 @@ class InsideOutsideStringClassifier(LightningModule):
 
         self.config = AutoConfig.from_pretrained(model_name_or_path, num_labels=num_labels)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, config=self.config)
-
+        self.accuracy = torchmetrics.Accuracy()
+        self.f1score = torchmetrics.F1Score(num_classes=2, multiclass=True)
+#         self.mcc = torchmetrics.MatthewsCorrCoef(num_classes=2)
+        
     def forward(self, **inputs):
         return self.model(**inputs)
 
@@ -143,6 +145,11 @@ class InsideOutsideStringClassifier(LightningModule):
         labels = torch.cat([x["labels"] for x in outputs]).detach().cpu().numpy()
         loss = torch.stack([x["loss"] for x in outputs]).mean()
         self.log("val_loss", loss, prog_bar=True)
+#         self.log(self.accuracy(preds, labels), prog_bar=True)
+        preds_cuda_tensor = torch.from_numpy(preds).float().cuda() 
+        labels_cuda_tensor  = torch.from_numpy(labels).cuda() 
+        self.log("val_accuracy", self.accuracy(preds_cuda_tensor, labels_cuda_tensor), prog_bar=True)
+        self.log("val_f1", self.f1score(preds_cuda_tensor, labels_cuda_tensor), prog_bar=True)
         return loss
 
     def setup(self, stage=None) -> None:
@@ -195,5 +202,8 @@ if __name__ == "__main__":
         eval_splits=dm.eval_splits
     )
 
-    trainer = Trainer(max_epochs=1, gpus=AVAIL_GPUS)
+    checkpoint_callback = ModelCheckpoint(monitor="val_loss", dirpath="source/classifier/models/", filename="inside-model-{epoch:02d}-{val_loss:.4f}", save_top_k=1, mode="min")
+    early_stopping = EarlyStopping(monitor='val_loss', patience=2, verbose=False, mode='min', check_finite=True)
+    trainer = Trainer(max_epochs=4, gpus=AVAIL_GPUS, callbacks=[checkpoint_callback, early_stopping])
     trainer.fit(model, datamodule=dm)
+    trainer.validate(model, dm.val_dataloader())

@@ -1,5 +1,6 @@
-from dis import dis
 import pandas as pd
+
+from sklearn.model_selection import train_test_split
 from source.utils.process_ptb import punctuation_words, currency_tags_words
 
 class PTBDataset:
@@ -16,8 +17,7 @@ class PTBDataset:
 
     def seed_bootstrap_constituent(self):
         constituent_slice_one = self.data['sentence']
-        constituent_slice_two = self.data['sentence']
-        constituent_samples = pd.DataFrame(dict(sentence=pd.concat([constituent_slice_one, constituent_slice_two]), label=1))
+        constituent_samples = pd.DataFrame(dict(sentence=constituent_slice_one, label=1))
         return constituent_samples
 
     def seed_bootstrap_distituent(self):
@@ -36,8 +36,12 @@ class PTBDataset:
     def aggregate_samples(self):
         constituent_samples = self.seed_bootstrap_constituent()
         distituent_samples = self.seed_bootstrap_distituent()
-        df = pd.concat([constituent_samples, distituent_samples], ignore_index=True)
-        return pd.DataFrame(df.sample(n=200, random_state=42).reset_index(drop=True).to_dict())
+        df = pd.concat([constituent_samples, distituent_samples], ignore_index=True).drop_duplicates(subset=['sentence']).dropna(subset=['sentence'])
+        df = df[df['sentence'].str.split().str.len() > 1]
+        df['sentence'] = df['sentence'].astype(str)
+        train, validation = train_test_split(df.head(1000), test_size=0.2, random_state=42, shuffle=True)
+        train.to_csv("source/classifier/datasets/train.csv", index=False)
+        validation.to_csv("source/classifier/datasets/validation.csv", index=False)
 
     def train_validation_split(self):
         pass
@@ -59,4 +63,4 @@ class KTBDataset:
 if __name__ == "__main__":
     ptb = PTBDataset(training_data_path="./data/PROCESSED/english/ptb-train-sentences-with-punctuation.txt")
     # print(ptb.preprocess())
-    print(ptb.aggregate_samples().to_csv("sample.csv", index=False))
+    print(ptb.aggregate_samples())
