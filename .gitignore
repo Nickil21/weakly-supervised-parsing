@@ -136,3 +136,6 @@ data/
 
 # Temporary stuff:
 TEMP/
+
+# PyTorchLightning stuff:
+lightning_logs/
