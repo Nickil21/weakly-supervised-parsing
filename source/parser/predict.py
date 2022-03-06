@@ -1,6 +1,9 @@
 
 
-class Predict:
+class Predictor:
 
-    def __init__(self):
-        pass
+    def __init__(self, sentence):
+        self.sentence = sentence
+
+    def predict(self):
+        

@@ -30,7 +30,7 @@ Download the PTB 3.0 file:
 
     wget http://bollin.inf.ed.ac.uk/public/direct/sandbox/ptb3.zip !! TO REMOVE THE LINK LATER
 
-Unzip the zip file, extract the contents inside the `data/` folder, and delete the original zi Ap file:
+Unzip the zip file, extract the contents inside the `data/` folder, and delete the original zip file:
 
     unzip ptb3.zip -d ./TEMP/ && rm ptb3.zip
 

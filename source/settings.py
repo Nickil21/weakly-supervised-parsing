@@ -20,3 +20,6 @@ PTB_TEST_GOLD_ALIGNED_PATH = PTB_ROOT_DIR + "ptb-test-gold-aligned.txt"
 YOON_KIM_TRAIN_GOLD_PATH = PTB_ROOT_DIR + "Yoon_Kim/ptb-train-gold-filtered.txt"
 YOON_KIM_VALID_GOLD_PATH = PTB_ROOT_DIR + "Yoon_Kim/ptb-valid-gold-filtered.txt"
 YOON_KIM_TEST_GOLD_PATH = PTB_ROOT_DIR + "Yoon_Kim/ptb-test-gold-filtered.txt"
+
+# Predictions
+PTB_SAVE_TREES = "TEMP/predictions/english/"
