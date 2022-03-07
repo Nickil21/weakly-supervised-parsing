@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
 
-from source.classifier.model import InsideOutsideStringPredictor
-from source.utils.prepare_dataset import NGramify
-from source.utils.create_inside_outside_strings import InsideOutside
+from parser.classifier.span_classifier import InsideOutsideStringPredictor
+from parser.utils.prepare_dataset import NGramify
+from parser.utils.create_inside_outside_strings import InsideOutside
 
 
 class PopulateCKYChart:

@@ -2,7 +2,7 @@ import csv
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
-from source.utils.process_ptb import punctuation_words, currency_tags_words
+from parser.utils.process_ptb import punctuation_words, currency_tags_words
 
 
 class NGramify:
