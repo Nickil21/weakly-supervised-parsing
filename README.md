@@ -39,7 +39,7 @@ Unzip the zip file, extract the contents inside the `data/` folder, and delete t
     mv ./data/RAW/english/original/ ./data/RAW/english/corpora/ptb/TEMP/
     mv ./data/RAW/english/corrected/ ./data/RAW/english/corpora/ptb/TEMP/
 
-    python source/utils/process_ptb.py --ptb_path ./TEMP/corrected/parsed/mrg/wsj/ --output_path ./data/PROCESSED/english/
+    python parser/utils/process_ptb.py --ptb_path ./TEMP/corrected/parsed/mrg/wsj/ --output_path ./data/PROCESSED/english/
 
     rm -rf ./TEMP/corrected/ 
     rm -rf ./TEMP/original/

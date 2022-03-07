@@ -1,8 +1,11 @@
 import csv
 import pandas as pd
+from collections import defaultdict
 
 from sklearn.model_selection import train_test_split
 from parser.utils.process_ptb import punctuation_words, currency_tags_words
+from parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
+from parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH
 
 
 class NGramify:
@@ -91,33 +94,54 @@ class PTBDataset:
     def preprocess(self):
         filterchars = punctuation_words + currency_tags_words
         filterchars = [char for char in filterchars if char not in list(",;") and char not in "``" and char not in "''"]
-        self.data["sentence"] = self.data["sentence"].apply(
-            lambda row: " ".join([sentence for sentence in row.split() if sentence not in filterchars])
-        )
+        self.data["sentence"] = self.data["sentence"].apply(lambda row: " ".join([sentence for sentence in row.split() if sentence not in filterchars]))
         return self.data
 
+    def contiguous_titlecase_words(self, row):
+        matches = []
+        dd = defaultdict(list)
+        count = 0
+        for i, j in zip(row, row[1:]):
+            if j[0] - i[0] == 1:
+                dd[count].append(i[-1] + " " + j[-1])
+            else:
+                count += 1
+        for key, value in dd.items():
+            if len(value) > 1:
+                out = value[0]
+                inter = ""
+                for item in value[1:]:
+                    inter += " " + item.split()[-1]
+                matches.append(out + inter)
+            else:
+                matches.extend(value)
+        return matches
+
     def seed_bootstrap_constituent(self):
-        constituent_slice_one = self.data["sentence"]
-        constituent_samples = pd.DataFrame(dict(sentence=constituent_slice_one, label=1))
+        whole_span_slice = self.data["sentence"]
+        func = lambda x: self.contiguous_titlecase_words([(index, character) for index, character in enumerate(x) if character.istitle() or "'" in character])
+        titlecase_matches = [item for sublist in self.data['sentence'].str.split().apply(func).tolist() for item in sublist if len(item.split()) > 1]
+        titlecase_matches = pd.Series(titlecase_matches)
+        constituent_samples = pd.DataFrame(dict(sentence=pd.concat([whole_span_slice, titlecase_matches]), label=1))
         return constituent_samples
 
     def seed_bootstrap_distituent(self):
-        distituent_slice_one = self.data["sentence"].str.split().str[:-1].str.join(" ")
-        distituent_slice_two = self.data[self.data["sentence"].str.split().str.len() > 30]["sentence"].str.split().str[:-2].str.join(" ")
-        distituent_slice_three = self.data[self.data["sentence"].str.split().str.len() > 40]["sentence"].str.split().str[:-3].str.join(" ")
-        distituent_slice_four = self.data[self.data["sentence"].str.split().str.len() > 50]["sentence"].str.split().str[:-4].str.join(" ")
-        distituent_slice_five = self.data[self.data["sentence"].str.split().str.len() > 60]["sentence"].str.split().str[:-5].str.join(" ")
-        distituent_slice_six = self.data[self.data["sentence"].str.split().str.len() > 70]["sentence"].str.split().str[:-6].str.join(" ")
+        last_but_one_slice = self.data["sentence"].str.split().str[:-1].str.join(" ")
+        last_but_two_slice = self.data[self.data["sentence"].str.split().str.len() > 30]["sentence"].str.split().str[:-2].str.join(" ")
+        last_but_three_slice = self.data[self.data["sentence"].str.split().str.len() > 40]["sentence"].str.split().str[:-3].str.join(" ")
+        last_but_four_slice = self.data[self.data["sentence"].str.split().str.len() > 50]["sentence"].str.split().str[:-4].str.join(" ")
+        last_but_five_slice = self.data[self.data["sentence"].str.split().str.len() > 60]["sentence"].str.split().str[:-5].str.join(" ")
+        last_but_six_slice = self.data[self.data["sentence"].str.split().str.len() > 70]["sentence"].str.split().str[:-6].str.join(" ")
         distituent_samples = pd.DataFrame(
             dict(
                 sentence=pd.concat(
                     [
-                        distituent_slice_one,
-                        distituent_slice_two,
-                        distituent_slice_three,
-                        distituent_slice_four,
-                        distituent_slice_five,
-                        distituent_slice_six,
+                        last_but_one_slice,
+                        last_but_two_slice,
+                        last_but_three_slice,
+                        last_but_four_slice,
+                        last_but_five_slice,
+                        last_but_six_slice,
                     ]
                 ),
                 label=0,
@@ -125,21 +149,18 @@ class PTBDataset:
         )
         return distituent_samples
 
-    def aggregate_samples(self):
-        constituent_samples = self.seed_bootstrap_constituent()
-        distituent_samples = self.seed_bootstrap_distituent()
-        df = pd.concat([constituent_samples, distituent_samples], ignore_index=True).drop_duplicates(subset=["sentence"]).dropna(subset=["sentence"])
+    def train_validation_split(self, test_size=0.2, shuffle=True, seed=42):
+        self.preprocess()
+        bootstrap_constituent_samples = self.seed_bootstrap_constituent()
+        bootstrap_distituent_samples = self.seed_bootstrap_distituent()
+        df = pd.concat([bootstrap_constituent_samples, bootstrap_distituent_samples], ignore_index=True)
+        df = df.drop_duplicates(subset=["sentence"]).dropna(subset=["sentence"])
         df = df[df["sentence"].str.split().str.len() > 1]
-        df["sentence"] = df["sentence"].astype(str)
-        train, validation = train_test_split(df.head(1000), test_size=0.2, random_state=42, shuffle=True)
-        train.to_csv("source/classifier/datasets/train.csv", index=False)
-        validation.to_csv("source/classifier/datasets/validation.csv", index=False)
-
-    def train_validation_split(self):
-        pass
+        train, validation = train_test_split(df, test_size=test_size, random_state=seed, shuffle=shuffle)
+        train.to_csv(INSIDE_BOOTSTRAPPED_DATASET_PATH + "train.csv", index=False)
+        validation.to_csv(INSIDE_BOOTSTRAPPED_DATASET_PATH + "validation.csv", index=False)
 
 
 if __name__ == "__main__":
-    ptb = PTBDataset(training_data_path="./data/PROCESSED/english/ptb-train-sentences-with-punctuation.txt")
-    # print(ptb.preprocess())
-    print(ptb.aggregate_samples())
+    ptb = PTBDataset(training_data_path=PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH)
+    print(ptb.train_validation_split())
