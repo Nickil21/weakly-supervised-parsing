@@ -8,8 +8,6 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer, seed_everything
 from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
 
-from source.utils.prepare_dataset import PTBDataset
-
 
 class DataModule(LightningDataModule):
 
@@ -73,12 +71,6 @@ class DataModule(LightningDataModule):
     def val_dataloader(self):
         if len(self.eval_splits) == 1:
             return DataLoader(self.dataset["validation"],batch_size=self.eval_batch_size, num_workers=self.num_workers)
-        elif len(self.eval_splits) > 1:
-            return [DataLoader(self.dataset[x], batch_size=self.eval_batch_size, num_workers=self.num_workers) for x in self.eval_splits]
-
-    def test_dataloader(self):
-        if len(self.eval_splits) == 1:
-            return DataLoader(self.dataset["test"], batch_size=self.eval_batch_size, num_workers=self.num_workers)
         elif len(self.eval_splits) > 1:
             return [DataLoader(self.dataset[x], batch_size=self.eval_batch_size, num_workers=self.num_workers) for x in self.eval_splits]
 
@@ -216,7 +208,7 @@ class InsideOutsideStringTrainer:
         self.save_model_path = save_model_path
         self.save_model_filename = save_model_filename
 
-    def fit(self):
+    def fit(self, max_epochs=5):
         seed_everything(42)
         AVAIL_GPUS = min(1, torch.cuda.device_count())
         dm = DataModule(model_name_or_path=self.model_name_or_path, train_data_path=self.train_data_path, validation_data_path=self.validation_data_path)
@@ -230,17 +222,21 @@ class InsideOutsideStringTrainer:
             mode="min",
         )
         early_stopping = EarlyStopping(monitor="val_loss", patience=2, verbose=False, mode="min", check_finite=True)
-        trainer = Trainer(max_epochs=5, gpus=AVAIL_GPUS, callbacks=[checkpoint_callback, early_stopping])
+        trainer = Trainer(max_epochs=max_epochs, gpus=AVAIL_GPUS, callbacks=[checkpoint_callback, early_stopping])
         trainer.fit(self.model, datamodule=dm)
         trainer.validate(self.model, dm.val_dataloader())
 
 
 class InsideOutsideStringPredictor:
 
-    def __init__(self):
+    def __init__(self, eval_dataset, span_method):
+        self.span_method = span_method
+        self.eval_dataset = datasets.Dataset.from_pandas(eval_dataset)
 
-
-    
-    
-  
-    
+    def predict_batch(self, inside_model_path=None, outside_model_path=None):
+        trainer = Trainer()
+        test_dataloader = DataLoader(self.eval_dataset, batch_size=self.eval_batch_size, num_workers=self.num_workers)
+        if self.span_method == "Inside":
+            return trainer.test(ckpt_path=inside_model_path, dataloaders=test_dataloader)
+        if self.span_method == "Outside":
+            return trainer.test(ckpt_path=outside_model_path, dataloaders=test_dataloader)

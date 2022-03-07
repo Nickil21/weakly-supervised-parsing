@@ -40,6 +40,9 @@ Unzip the zip file, extract the contents inside the `data/` folder, and delete t
     mv ./data/RAW/english/corrected/ ./data/RAW/english/corpora/ptb/TEMP/
 
     python source/utils/process_ptb.py --ptb_path ./TEMP/corrected/parsed/mrg/wsj/ --output_path ./data/PROCESSED/english/
+
+    rm -rf ./TEMP/corrected/ 
+    rm -rf ./TEMP/original/
     
 Download the files: `ptb-train-gold-filtered.txt`, `ptb-valid-gold-filtered.txt`, and `ptb-test-gold-filtered.txt` from [here](https://drive.google.com/file/d/1m4ssitfkWcDSxAE6UYidrP6TlUctSG2D/view) and place them inside `./data/PROCESSED/english/Yoon_Kim/`.
 
