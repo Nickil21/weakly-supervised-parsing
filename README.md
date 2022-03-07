@@ -1,5 +1,6 @@
 # Co-training an Unsupervised Constituency Parser with Weak Supervision
 
+![Block Diagram](https://nickilmaveli.com/assets/images/publications/mscr_thesis.png)
 
 ## Installing Pipenv
 
