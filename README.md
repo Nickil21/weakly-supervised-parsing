@@ -1,4 +1,4 @@
-# Unsupervised Parsing
+# Co-training an Unsupervised Constituency Parser with Weak Supervision
 
 
 ## Installing Pipenv
@@ -39,7 +39,11 @@ Unzip the zip file, extract the contents inside the `data/` folder, and delete t
     mv ./data/RAW/english/original/ ./data/RAW/english/corpora/ptb/TEMP/
     mv ./data/RAW/english/corrected/ ./data/RAW/english/corpora/ptb/TEMP/
 
+To process PTB:
+
     python parser/utils/process_ptb.py --ptb_path ./TEMP/corrected/parsed/mrg/wsj/ --output_path ./data/PROCESSED/english/
+
+Delete the unnecessary PTB files inside the `TEMP/` folder.
 
     rm -rf ./TEMP/corrected/ 
     rm -rf ./TEMP/original/

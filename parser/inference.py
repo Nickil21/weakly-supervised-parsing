@@ -23,8 +23,6 @@ test_sentences_with_punctuation = DataLoader(input_file_object=PTB_TEST_SENTENCE
 test_sentences_without_punctuation = DataLoader(input_file_object=PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
 
 for (test_index, (test_sentence_with_punctuation, test_sentence_without_punctuation)) in enumerate(zip(test_sentences_with_punctuation, test_sentences_without_punctuation)):
-    print(test_sentence_with_punctuation)
-    print(test_sentence_without_punctuation)
     gold_standard = DataLoader(input_file_object=PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH)[test_index]
     best_parse = Predictor(sentence=test_sentence_without_punctuation).predict()
     f1 = calculate_F1_for_spans(tree_to_spans(gold_standard), tree_to_spans(best_parse))
