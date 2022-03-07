@@ -1,9 +1,9 @@
 import csv
 import pandas as pd
-from collections import defaultdict
 
 from sklearn.model_selection import train_test_split
 from parser.utils.process_ptb import punctuation_words, currency_tags_words
+from parser.utils.distant_supervision import RuleBasedHeuristic
 from parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
 from parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH
 
@@ -14,7 +14,7 @@ class NGramify:
         self.sentence_length = len(self.sentence)
         self.ngrams = []
 
-    def generate_ngrams(self, single_span=False, whole_span=False):
+    def generate_ngrams(self, single_span=True, whole_span=True):
         # number of substrings possible is N*(N+1)/2
         # exclude substring or spans of length 1 and length N
         if single_span:
@@ -74,10 +74,8 @@ class DataLoader:
             lines = f.read().splitlines()
         return lines
 
-    def get_row(self, index):
-        for i, line in enumerate(self.read_lines()):
-            if i == index:
-                return line
+    def __getitem__(self, index):
+        return self.read_lines()[index]
 
     def write_lines(self, keys, values):
         with open(self.output_file_object, "w", newline="\n") as output_file:
@@ -91,38 +89,29 @@ class PTBDataset:
         self.data = pd.read_csv(training_data_path, sep="\t", header=None, names=["sentence"])
         self.data["sentence"] = self.data
 
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        return self.data["sentence"].loc[index]
+
+    def retrieve_all_sentences(self):
+        return self.data["sentence"].tolist()
+
     def preprocess(self):
         filterchars = punctuation_words + currency_tags_words
         filterchars = [char for char in filterchars if char not in list(",;") and char not in "``" and char not in "''"]
         self.data["sentence"] = self.data["sentence"].apply(lambda row: " ".join([sentence for sentence in row.split() if sentence not in filterchars]))
         return self.data
 
-    def contiguous_titlecase_words(self, row):
-        matches = []
-        dd = defaultdict(list)
-        count = 0
-        for i, j in zip(row, row[1:]):
-            if j[0] - i[0] == 1:
-                dd[count].append(i[-1] + " " + j[-1])
-            else:
-                count += 1
-        for key, value in dd.items():
-            if len(value) > 1:
-                out = value[0]
-                inter = ""
-                for item in value[1:]:
-                    inter += " " + item.split()[-1]
-                matches.append(out + inter)
-            else:
-                matches.extend(value)
-        return matches
-
     def seed_bootstrap_constituent(self):
         whole_span_slice = self.data["sentence"]
-        func = lambda x: self.contiguous_titlecase_words([(index, character) for index, character in enumerate(x) if character.istitle() or "'" in character])
+        func = lambda x: RuleBasedHeuristic().add_contiguous_titlecase_words(row=[(index, character) for index, character in enumerate(x) if character.istitle() or "'" in character])
         titlecase_matches = [item for sublist in self.data['sentence'].str.split().apply(func).tolist() for item in sublist if len(item.split()) > 1]
-        titlecase_matches = pd.Series(titlecase_matches)
-        constituent_samples = pd.DataFrame(dict(sentence=pd.concat([whole_span_slice, titlecase_matches]), label=1))
+        titlecase_matches_df = pd.Series(titlecase_matches)
+        most_frequent_start_token = RuleBasedHeuristic(corpus=self.retrieve_all_sentences()).augment_using_most_frequent_starting_token()
+        most_frequent_start_token_df = titlecase_matches_df[titlecase_matches_df.str.startswith(most_frequent_start_token)].str.lower()
+        constituent_samples = pd.DataFrame(dict(sentence=pd.concat([whole_span_slice, titlecase_matches_df, most_frequent_start_token_df]), label=1))
         return constituent_samples
 
     def seed_bootstrap_distituent(self):

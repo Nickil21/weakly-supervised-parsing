@@ -1,3 +1,6 @@
+from sklearn.linear_model import OrthogonalMatchingPursuitCV
+
+
 class InsideOutside:
     def __init__(self, sentence):
         self.sentence = sentence.split()
@@ -33,4 +36,6 @@ class InsideOutside:
             "left_outside_string": " ".join(outside_string[0]),
             "right_outside_string": " ".join(outside_string[-1]),
         }
-        return output_dict
+        inside_string_template = output_dict["inside_string"]
+        outside_string_template = output_dict["left_outside_string"].split()[-1] + " " + "<mask>" + " " + output_dict["right_outside_string"].split()[0]
+        return output_dict, inside_string_template, outside_string_template

@@ -229,9 +229,11 @@ class InsideOutsideStringTrainer:
 
 class InsideOutsideStringPredictor:
 
-    def __init__(self, eval_dataset, span_method):
+    def __init__(self, eval_dataset, span_method, eval_batch_size=32, num_workers=32):
         self.span_method = span_method
         self.eval_dataset = datasets.Dataset.from_pandas(eval_dataset)
+        self.eval_batch_size = eval_batch_size
+        self.num_workers = num_workers 
 
     def predict_batch(self, inside_model_path=None, outside_model_path=None):
         trainer = Trainer()
