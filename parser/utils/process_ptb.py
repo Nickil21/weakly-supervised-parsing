@@ -196,8 +196,8 @@ def get_data_ptb(root, output):
 
 def main(arguments):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--ptb_path", help="Path to parsed/mrg/wsj folder", type=str, default="PATH-TO-PTB/parsed/mrg/wsj")
-    parser.add_argument("--output_path", help="Path to save processed files", type=str, default="data")
+    parser.add_argument("--ptb_path", help="Path to parsed/mrg/wsj folder", type=str, default="./TEMP/corrected/parsed/mrg/wsj/")
+    parser.add_argument("--output_path", help="Path to save processed files", type=str, default="./data/PROCESSED/english/")
     args = parser.parse_args(arguments)
     get_data_ptb(args.ptb_path, args.output_path)
 
