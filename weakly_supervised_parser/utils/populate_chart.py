@@ -3,13 +3,13 @@ import numpy as np
 
 import datasets
 
-from parser.utils.prepare_dataset import DataLoader
+from weakly_supervised_parser.utils.prepare_dataset import DataLoader
 from pytorch_lightning import LightningDataModule, Trainer
-from parser.model.span_classifier import InsideOutsideStringClassifier, DataModule
-from parser.utils.prepare_dataset import NGramify
-from parser.utils.create_inside_outside_strings import InsideOutside
+from weakly_supervised_parser.model.span_classifier import InsideOutsideStringClassifier, DataModule
+from weakly_supervised_parser.utils.prepare_dataset import NGramify
+from weakly_supervised_parser.utils.create_inside_outside_strings import InsideOutside
 
-from parser.settings import INSIDE_MODEL_PATH
+from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
 
 
 

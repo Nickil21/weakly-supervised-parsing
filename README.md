@@ -37,7 +37,13 @@ Unzip the zip file, extract the contents inside the `data/` folder, and delete t
 
     cp -r ./TEMP/ ./data/RAW/english/
     mkdir ./data/RAW/english/corpora/ptb/TEMP/
-    mv ./data/RAW/english/corrected/ ./data/RAW/english/corpora/ptb/TEMP/
+    mv ./data/RAW/english/TEMP/corrected/ ./data/RAW/english/corpora/ptb/TEMP/
+
+Download the following files from [here](https://drive.google.com/file/d/1m4ssitfkWcDSxAE6UYidrP6TlUctSG2D/view) and place them inside `./data/PROCESSED/english/Yoon_Kim/`:
+
+    ptb-train-gold-filtered.txt
+    ptb-valid-gold-filtered.txt
+    ptb-test-gold-filtered.txt
 
 To process PTB:
 
@@ -47,9 +53,3 @@ Delete the unnecessary PTB files inside the `TEMP/` folder.
 
     rm -rf ./TEMP/corrected/
     
-Download the following files from [here](https://drive.google.com/file/d/1m4ssitfkWcDSxAE6UYidrP6TlUctSG2D/view) and place them inside `./data/PROCESSED/english/Yoon_Kim/`:
-
-    ptb-train-gold-filtered.txt
-    ptb-valid-gold-filtered.txt
-    ptb-test-gold-filtered.txt
-

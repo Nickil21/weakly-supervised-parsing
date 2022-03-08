@@ -2,10 +2,10 @@ import csv
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
-from parser.utils.process_ptb import punctuation_words, currency_tags_words
-from parser.utils.distant_supervision import RuleBasedHeuristic
-from parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
-from parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH
+from weakly_supervised_parser.utils.process_ptb import punctuation_words, currency_tags_words
+from weakly_supervised_parser.utils.distant_supervision import RuleBasedHeuristic
+from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
+from weakly_supervised_parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH
 
 
 class NGramify:

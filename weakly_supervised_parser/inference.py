@@ -1,10 +1,10 @@
-from parser.utils.prepare_dataset import DataLoader
-from parser.utils.cky_algorithm import get_best_parse
-from parser.utils.populate_chart import PopulateCKYChart
-from parser.tree.evaluate import calculate_F1_for_spans, tree_to_spans
-from parser.settings import PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH, PTB_TEST_SENTENCES_WITH_PUNCTUATION_PATH
-from parser.settings import PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
-from parser.settings import INSIDE_MODEL_PATH
+from weakly_supervised_parser.utils.prepare_dataset import DataLoader
+from weakly_supervised_parser.utils.cky_algorithm import get_best_parse
+from weakly_supervised_parser.utils.populate_chart import PopulateCKYChart
+from weakly_supervised_parser.tree.evaluate import calculate_F1_for_spans, tree_to_spans
+from weakly_supervised_parser.settings import PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH, PTB_TEST_SENTENCES_WITH_PUNCTUATION_PATH
+from weakly_supervised_parser.settings import PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
+from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
         
 
 class Predictor:

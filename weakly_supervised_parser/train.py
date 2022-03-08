@@ -2,10 +2,10 @@ import torch
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
-from parser.model.span_classifier import InsideOutsideStringClassifier, DataModule
-from parser.utils.prepare_dataset import PTBDataset
-from parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
-from parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH, INSIDE_MODEL_PATH
+from weakly_supervised_parser.model.span_classifier import InsideOutsideStringClassifier, DataModule
+from weakly_supervised_parser.utils.prepare_dataset import PTBDataset
+from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
+from weakly_supervised_parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH, INSIDE_MODEL_PATH
 
 
 if __name__ == "__main__":

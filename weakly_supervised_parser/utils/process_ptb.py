@@ -8,29 +8,29 @@ import pandas as pd
 
 from nltk.corpus import ptb
 
-from parser.settings import PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_PATH, PTB_VALID_GOLD_WITHOUT_PUNCTUATION_PATH, PTB_TEST_GOLD_WITHOUT_PUNCTUATION_PATH
-from parser.settings import (
+from weakly_supervised_parser.settings import PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_PATH, PTB_VALID_GOLD_WITHOUT_PUNCTUATION_PATH, PTB_TEST_GOLD_WITHOUT_PUNCTUATION_PATH
+from weakly_supervised_parser.settings import (
     PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH,
     PTB_VALID_SENTENCES_WITH_PUNCTUATION_PATH,
     PTB_TEST_SENTENCES_WITH_PUNCTUATION_PATH,
 )
-from parser.settings import (
+from weakly_supervised_parser.settings import (
     PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH,
     PTB_VALID_SENTENCES_WITHOUT_PUNCTUATION_PATH,
     PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH,
 )
-from parser.settings import (
+from weakly_supervised_parser.settings import (
     PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH,
     PTB_VALID_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH,
     PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH,
 )
-from parser.settings import (
+from weakly_supervised_parser.settings import (
     YOON_KIM_TRAIN_GOLD_WITHOUT_PUNCTUATION_PATH,
     YOON_KIM_VALID_GOLD_WITHOUT_PUNCTUATION_PATH,
     YOON_KIM_TEST_GOLD_WITHOUT_PUNCTUATION_PATH,
 )
 
-from parser.tree.helpers import extract_sentence
+from weakly_supervised_parser.tree.helpers import extract_sentence
 
 
 class AlignPTBYoonKimFormat:

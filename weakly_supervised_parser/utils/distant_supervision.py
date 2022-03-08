@@ -34,8 +34,8 @@ class RuleBasedHeuristic:
         return Counter(first_token).most_common(1)[0][0]
 
 if __name__ == "__main__":
-    from parser.utils.prepare_dataset import PTBDataset
-    from parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
+    from weakly_supervised_parser.utils.prepare_dataset import PTBDataset
+    from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
 
     ptb = PTBDataset(training_data_path=PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH)
     print(RuleBasedHeuristic().augment_using_most_frequent_starting_token(sentences=ptb.retrieve_all_sentences()))
