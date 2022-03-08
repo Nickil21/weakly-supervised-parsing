@@ -4,7 +4,8 @@ from parser.utils.populate_chart import PopulateCKYChart
 from parser.tree.evaluate import calculate_F1_for_spans, tree_to_spans
 from parser.settings import PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH, PTB_TEST_SENTENCES_WITH_PUNCTUATION_PATH
 from parser.settings import PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
-
+from parser.settings import INSIDE_MODEL_PATH
+        
 
 class Predictor:
 

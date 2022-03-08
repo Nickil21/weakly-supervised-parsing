@@ -1,9 +1,26 @@
 import pandas as pd
 import numpy as np
 
-from parser.train.span_classifier import InsideOutsideStringPredictor
+import datasets
+
+from parser.utils.prepare_dataset import DataLoader
+from pytorch_lightning import LightningDataModule, Trainer
+from parser.model.span_classifier import InsideOutsideStringClassifier, DataModule
 from parser.utils.prepare_dataset import NGramify
 from parser.utils.create_inside_outside_strings import InsideOutside
+
+from parser.settings import INSIDE_MODEL_PATH
+
+
+
+class DataModule(LightningDataModule):
+    
+    def __init__(self, data):
+        self.data = data
+        
+    def test_dataloader(self):
+        return DataLoader(datasets.Dataset.from_pandas(self.data))
+
 
 
 class PopulateCKYChart:
@@ -23,7 +40,7 @@ class PopulateCKYChart:
         eval_data["scores"] = eval_data["scores"].clip(lower=0.0, upper=1.0)
         return eval_data
 
-    def fill_chart(self, inside_model_path=None, outside_model_path=None):
+    def fill_chart(self):
         inside_strings = []
         outside_strings = []
 
@@ -33,7 +50,14 @@ class PopulateCKYChart:
             outside_strings.append(outside_string)
 
         data = pd.DataFrame({"inside_sentence": inside_strings, "outside_sentence": outside_strings, "span": [span[0] for span in self.all_spans]})
-        data["inside_scores"] = InsideOutsideStringPredictor(eval_dataset=data[["inside_sentence"]], span_method="Inside").predict_batch(inside_model_path=inside_model_path)
+        
+        # setup your datamodule
+        test_dm = DataModule(data=data)
+        inside_model = InsideOutsideStringClassifier.load_from_checkpoint(checkpoint_path=INSIDE_MODEL_PATH + "best_model.ckpt")
+        trainer = Trainer(gpus=1)
+        trainer.test(model=inside_model, dataloaders=test_dm)
+        
+#         data["inside_scores"] = InsideOutsideStringPredictor(eval_dataset=data[["inside_sentence"]], span_method="Inside").predict_batch(inside_model_path=inside_model_path)
         # data["outside_scores"] = InsideOutsideStringPredictor(eval_dataset=data[["outside_sentence"]], span_method="Outside").predict_batch(outside_model_path=outside_model_path)
         data["scores"] = data["inside_scores"].copy()
 

@@ -146,6 +146,8 @@ class PTBDataset:
         df = df.drop_duplicates(subset=["sentence"]).dropna(subset=["sentence"])
         df = df[df["sentence"].str.split().str.len() > 1]
         train, validation = train_test_split(df, test_size=test_size, random_state=seed, shuffle=shuffle)
+        train = train.head(8000)
+        validation = validation.head(2000)
         train.to_csv(INSIDE_BOOTSTRAPPED_DATASET_PATH + "train.csv", index=False)
         validation.to_csv(INSIDE_BOOTSTRAPPED_DATASET_PATH + "validation.csv", index=False)
 
