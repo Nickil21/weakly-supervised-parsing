@@ -30,7 +30,7 @@ from parser.settings import (
     YOON_KIM_TEST_GOLD_WITHOUT_PUNCTUATION_PATH,
 )
 
-from parser.trees.helpers import extract_sentence
+from parser.tree.helpers import extract_sentence
 
 
 class AlignPTBYoonKimFormat:

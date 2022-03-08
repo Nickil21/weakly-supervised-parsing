@@ -1,6 +1,6 @@
 import nltk
 from collections import Counter
-from parser.trees.evaluate import tree_to_spans
+from parser.tree.evaluate import tree_to_spans
 
 
 def extract_sentence(sentence):
