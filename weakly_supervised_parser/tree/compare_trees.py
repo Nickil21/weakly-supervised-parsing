@@ -11,16 +11,71 @@ import time
 
 import numpy as np
 import torch
-import torch.nn as nn
-from torch import cuda
-from utils import *
+
 
 parser = argparse.ArgumentParser()
 
 # Data path options
-parser.add_argument("--tree1", default="")
+parser.add_argument("--tree1", default="data/PROCESSED/english/trees/Yoon_Kim/ptb-test-gold-filtered.txt")
 parser.add_argument("--tree2", default="")
 parser.add_argument("--length_cutoff", default=150, type=int)
+
+
+def get_stats(span1, span2):
+    tp = 0
+    fp = 0
+    fn = 0
+    for span in span1:
+        if span in span2:
+            tp += 1
+        else:
+            fp += 1
+    for span in span2:
+        if span not in span1:
+            fn += 1
+    return tp, fp, fn
+
+
+def get_nonbinary_spans(actions, SHIFT=0, REDUCE=1):
+    spans = []
+    stack = []
+    pointer = 0
+    binary_actions = []
+    nonbinary_actions = []
+    num_shift = 0
+    num_reduce = 0
+    for action in actions:
+        # print(action, stack)
+        if action == "SHIFT":
+            nonbinary_actions.append(SHIFT)
+            stack.append((pointer, pointer))
+            pointer += 1
+            binary_actions.append(SHIFT)
+            num_shift += 1
+        elif action[:3] == 'NT(':
+            stack.append('(')
+        elif action == "REDUCE":
+            nonbinary_actions.append(REDUCE)
+            right = stack.pop()
+            left = right
+            n = 1
+            while stack[-1] != '(':
+                left = stack.pop()
+                n += 1
+            span = (left[0], right[1])
+            if left[0] != right[1]:
+                spans.append(span)
+            stack.pop()
+            stack.append(span)
+            while n > 1:
+                n -= 1
+                binary_actions.append(REDUCE)
+                num_reduce += 1
+        else:
+            assert False
+    assert (len(stack) == 1)
+    assert (num_shift == num_reduce + 1)
+    return spans, binary_actions, nonbinary_actions
 
 
 def is_next_open_bracket(line, start_idx):

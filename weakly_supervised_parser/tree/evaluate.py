@@ -210,11 +210,11 @@ def calculate_corpus_level_F1_for_file(gold_file, pred_file, len_limit):
 def evaluate_prediction_file(gold_file, pred_file, len_limit):
     corpus_F1 = calculate_corpus_level_F1_for_file(gold_file, pred_file, len_limit)
     sentence_F1 = calculate_sentence_level_F1_for_file(gold_file, pred_file, len_limit)
-    evalb_F1 = calculate_evalb_F1_for_file(gold_file, pred_file, len_limit)
+    # evalb_F1 = calculate_evalb_F1_for_file(gold_file, pred_file, len_limit)
 
     print("=====> Evaluation Results <=====")
     print("Length constraint: {}".format(len_limit))
-    print("Micro F1: {:.2f}, Macro F1: {:.2f}, Evalb F1: {:.2f}".format(corpus_F1, sentence_F1, evalb_F1))
+    print("Micro F1: {:.2f}, Macro F1: {:.2f}".format(corpus_F1, sentence_F1)) #, evalb_F1))
     print("=====> Evaluation Results <=====")
 
 

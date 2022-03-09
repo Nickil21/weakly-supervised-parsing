@@ -8,12 +8,10 @@ from weakly_supervised_parser.utils.create_inside_outside_strings import InsideO
 from weakly_supervised_parser.model.span_classifier import InsideOutsideStringClassifier, DataModule
 from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
 
-from datasets.utils.logging import set_verbosity_error
-set_verbosity_error()
 
-
-inside_model = InsideOutsideStringClassifier.load_from_checkpoint(checkpoint_path=INSIDE_MODEL_PATH + "best_model.ckpt")       
-trainer = Trainer(enable_progress_bar=False, gpus=-1)
+inside_model = InsideOutsideStringClassifier.load_from_checkpoint(checkpoint_path=INSIDE_MODEL_PATH + "best_model.ckpt")
+# outside_model = InsideOutsideStringClassifier.load_from_checkpoint(checkpoint_path=OUTSIDE_MODEL_PATH + "best_model.ckpt")
+trainer = Trainer(accelerator="gpu", strategy="ddp", enable_progress_bar=False, gpus=-1) #, profiler="simple")
 
 
 class PopulateCKYChart:
@@ -27,7 +25,7 @@ class PopulateCKYChart:
         cell_score = eval_data.loc[eval_data["span"] == span, "scores"].item()
         return cell_score
 
-    def fill_chart(self, inside_model_path=None, outside_model_path=None):
+    def fill_chart(self):
         inside_strings = []
         outside_strings = []
 
@@ -37,11 +35,8 @@ class PopulateCKYChart:
             outside_strings.append(outside_string)
 
         data = pd.DataFrame({"inside_sentence": inside_strings, "outside_sentence": outside_strings, "span": [span[0] for span in self.all_spans]})
-        print('predicting ... ')
         data["inside_scores"] = trainer.predict(inside_model, 
-                                                dataloaders=DataModule(model_name_or_path="roberta-base", 
-                                                                       test_data=data.rename(columns={"inside_sentence": "sentence"})))[0]
-        print('predicting done ... ')
+                                                dataloaders=DataModule(model_name_or_path="roberta-base", test_data=data.rename(columns={"inside_sentence": "sentence"})))[0]
         # data["outside_scores"] = InsideOutsideStringPredictor(eval_dataset=data[["outside_sentence"]], span_method="Outside").predict_batch(outside_model_path=outside_model_path)
         data["scores"] = data["inside_scores"].copy()
 

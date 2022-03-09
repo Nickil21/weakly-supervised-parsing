@@ -115,12 +115,13 @@ class PTBDataset:
         return constituent_samples
 
     def seed_bootstrap_distituent(self):
+        avg_sent_len = int(self.data["sentence"].str.split().str.len().mean())
         last_but_one_slice = self.data["sentence"].str.split().str[:-1].str.join(" ")
-        last_but_two_slice = self.data[self.data["sentence"].str.split().str.len() > 30]["sentence"].str.split().str[:-2].str.join(" ")
-        last_but_three_slice = self.data[self.data["sentence"].str.split().str.len() > 40]["sentence"].str.split().str[:-3].str.join(" ")
-        last_but_four_slice = self.data[self.data["sentence"].str.split().str.len() > 50]["sentence"].str.split().str[:-4].str.join(" ")
-        last_but_five_slice = self.data[self.data["sentence"].str.split().str.len() > 60]["sentence"].str.split().str[:-5].str.join(" ")
-        last_but_six_slice = self.data[self.data["sentence"].str.split().str.len() > 70]["sentence"].str.split().str[:-6].str.join(" ")
+        last_but_two_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len]["sentence"].str.split().str[:-2].str.join(" ")
+        last_but_three_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len + 10]["sentence"].str.split().str[:-3].str.join(" ")
+        last_but_four_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len  + 20]["sentence"].str.split().str[:-4].str.join(" ")
+        last_but_five_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len  + 30]["sentence"].str.split().str[:-5].str.join(" ")
+        last_but_six_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len + 40]["sentence"].str.split().str[:-6].str.join(" ")
         distituent_samples = pd.DataFrame(
             dict(
                 sentence=pd.concat(
@@ -150,8 +151,3 @@ class PTBDataset:
         validation = validation.head(2000)
         train.to_csv(INSIDE_BOOTSTRAPPED_DATASET_PATH + "train.csv", index=False)
         validation.to_csv(INSIDE_BOOTSTRAPPED_DATASET_PATH + "validation.csv", index=False)
-
-
-if __name__ == "__main__":
-    ptb = PTBDataset(training_data_path=PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH)
-    print(ptb.train_validation_split())

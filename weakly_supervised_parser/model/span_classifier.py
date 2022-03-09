@@ -4,6 +4,10 @@ import torchmetrics
 from torch.utils.data import DataLoader, Dataset
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
 from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
+from datasets.utils import set_progress_bar_enabled
+
+# Disable Dataset.map progress bar
+set_progress_bar_enabled(False)
 
 
 class DataModule(LightningDataModule):
@@ -48,9 +52,7 @@ class DataModule(LightningDataModule):
         
         if self.test_data is not None:
             self.test_dataset = datasets.Dataset.from_pandas(self.test_data)
-            print("mapping dataset ...")
-            self.test_dataset = self.test_dataset.map(self.convert_to_features, batched=True)
-            print("mapping dataset done ...")
+            self.test_dataset = self.test_dataset.map(self.convert_to_features, batched=True, batch_size=None, load_from_cache_file=False)
         
         if self.train_data_path and self.validation_data_path:
             self.dataset = datasets.load_dataset( "csv", data_files={"train": self.train_data_path, "validation": self.validation_data_path})
@@ -64,30 +66,31 @@ class DataModule(LightningDataModule):
                 self.dataset[split].set_format(type="torch", columns=self.columns)
 
     def train_dataloader(self):
-        return DataLoader(self.dataset["train"], batch_size=self.train_batch_size, num_workers=self.num_workers)
+        return DataLoader(self.dataset["train"], batch_size=self.train_batch_size, num_workers=self.num_workers, pin_memory=True)
 
     def val_dataloader(self):
-        return DataLoader(self.dataset["validation"], batch_size=self.eval_batch_size, num_workers=self.num_workers)
+        return DataLoader(self.dataset["validation"], batch_size=self.eval_batch_size, num_workers=self.num_workers, pin_memory=True)
 
     def predict_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=len(self.test_dataset), num_workers=self.num_workers)
+        return DataLoader(self.test_dataset, batch_size=len(self.test_dataset), num_workers=self.num_workers, pin_memory=True)
 
     def convert_to_features(self, example_batch, indices=None):
 
         texts_or_text_pairs = example_batch[self.text_fields[0]]
-
+        
         # Tokenize the text/text pairs
         features = self.tokenizer.batch_encode_plus(
             texts_or_text_pairs,
             max_length=self.max_seq_length,
-            pad_to_max_length=True,
+            padding='max_length',
+            add_special_tokens=True,
             truncation=True
         )
         
         if "label" in example_batch:
             # Rename label to labels to make it easier to pass to model forward
             features["labels"] = example_batch["label"]
-
+        
         return features
     
 
@@ -107,7 +110,7 @@ class InsideOutsideStringClassifier(LightningModule):
         super().__init__()
 
         self.save_hyperparameters()
-
+        
         self.config = AutoConfig.from_pretrained(model_name_or_path, num_labels=num_labels)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, config=self.config)
         self.accuracy = torchmetrics.Accuracy()
@@ -146,10 +149,8 @@ class InsideOutsideStringClassifier(LightningModule):
         labels = torch.cat([x["labels"] for x in outputs]).detach().cpu().numpy()
         loss = torch.stack([x["loss"] for x in outputs]).mean()
         self.log("val_loss", loss, prog_bar=True)
-        preds_cuda_tensor = torch.from_numpy(preds).float().cuda()
-        labels_cuda_tensor = torch.from_numpy(labels).cuda()
-        self.log("val_accuracy", self.accuracy(preds_cuda_tensor, labels_cuda_tensor), prog_bar=True)
-        self.log("val_f1", self.f1score(preds_cuda_tensor, labels_cuda_tensor), prog_bar=True)
+        self.log("val_accuracy", self.accuracy(torch.from_numpy(preds).float().cuda(), torch.from_numpy(labels).cuda()), prog_bar=True)
+        self.log("val_f1", self.f1score(torch.from_numpy(preds).float().cuda(), torch.from_numpy(labels).cuda()), prog_bar=True)
         return loss
     
     def setup(self, stage=None) -> None:
@@ -190,6 +191,3 @@ class InsideOutsideStringClassifier(LightningModule):
         )
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         return [optimizer], [scheduler]
-
-    
-    
