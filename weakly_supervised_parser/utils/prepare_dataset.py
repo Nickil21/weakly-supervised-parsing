@@ -64,7 +64,7 @@ class NGramify:
         return self.ngrams
 
 
-class DataLoader:
+class DataLoaderHelper:
     def __init__(self, input_file_object=None, output_file_object=None):
         self.input_file_object = input_file_object
         self.output_file_object = output_file_object

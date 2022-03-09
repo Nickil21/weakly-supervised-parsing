@@ -1,9 +1,7 @@
-from typing import Optional
-
-import datasets
 import torch
+import datasets
 import torchmetrics
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
 from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
 
@@ -23,12 +21,13 @@ class DataModule(LightningDataModule):
     def __init__(
         self,
         model_name_or_path: str,
-        train_data_path: str,
-        validation_data_path: str,
         max_seq_length: int = 128,
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
         num_workers: int = 32,
+        train_data_path=None,
+        validation_data_path=None,
+        test_data=None,
         **kwargs,
     ):
         super().__init__()
@@ -39,65 +38,58 @@ class DataModule(LightningDataModule):
         self.train_batch_size = train_batch_size
         self.eval_batch_size = eval_batch_size
         self.num_workers = num_workers
+        self.test_data = test_data
 
         self.text_fields = ["sentence"]
         self.num_labels = 2
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
 
     def setup(self, stage: str):
-
-        self.dataset = datasets.load_dataset( "csv", data_files={"train": self.train_data_path, "validation": self.validation_data_path})
-
-        for split in self.dataset.keys():
-            self.dataset[split] = self.dataset[split].map(
-                self.convert_to_features,
-                batched=True,
-                remove_columns=["label"],
-            )
-            self.columns = [c for c in self.dataset[split].column_names if c in self.loader_columns]
-            self.dataset[split].set_format(type="torch", columns=self.columns)
-
-        self.eval_splits = [x for x in self.dataset.keys() if "validation" in x]
-
-    def prepare_data(self):
-        datasets.load_dataset("csv", data_files={"train": self.train_data_path, "validation": self.validation_data_path})
-        AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
+        
+        if self.test_data is not None:
+            self.test_dataset = datasets.Dataset.from_pandas(self.test_data)
+            print("mapping dataset ...")
+            self.test_dataset = self.test_dataset.map(self.convert_to_features, batched=True)
+            print("mapping dataset done ...")
+        
+        if self.train_data_path and self.validation_data_path:
+            self.dataset = datasets.load_dataset( "csv", data_files={"train": self.train_data_path, "validation": self.validation_data_path})
+            for split in self.dataset.keys():
+                self.dataset[split] = self.dataset[split].map(
+                    self.convert_to_features,
+                    batched=True,
+                    remove_columns=["label"],
+                )
+                self.columns = [c for c in self.dataset[split].column_names if c in self.loader_columns]
+                self.dataset[split].set_format(type="torch", columns=self.columns)
 
     def train_dataloader(self):
         return DataLoader(self.dataset["train"], batch_size=self.train_batch_size, num_workers=self.num_workers)
 
     def val_dataloader(self):
-        if len(self.eval_splits) == 1:
-            return DataLoader(self.dataset["validation"],batch_size=self.eval_batch_size, num_workers=self.num_workers)
-        elif len(self.eval_splits) > 1:
-            return [DataLoader(self.dataset[x], batch_size=self.eval_batch_size, num_workers=self.num_workers) for x in self.eval_splits]
+        return DataLoader(self.dataset["validation"], batch_size=self.eval_batch_size, num_workers=self.num_workers)
+
+    def predict_dataloader(self):
+        return DataLoader(self.test_dataset, batch_size=len(self.test_dataset), num_workers=self.num_workers)
 
     def convert_to_features(self, example_batch, indices=None):
 
-        # Either encode single sentence or sentence pairs
-        if len(self.text_fields) > 1:
-            texts_or_text_pairs = list(
-                zip(
-                    example_batch[self.text_fields[0]],
-                    example_batch[self.text_fields[1]],
-                )
-            )
-        else:
-            texts_or_text_pairs = example_batch[self.text_fields[0]]
+        texts_or_text_pairs = example_batch[self.text_fields[0]]
 
         # Tokenize the text/text pairs
         features = self.tokenizer.batch_encode_plus(
             texts_or_text_pairs,
             max_length=self.max_seq_length,
             pad_to_max_length=True,
-            truncation=True,
+            truncation=True
         )
-
-        # Rename label to labels to make it easier to pass to model forward
-        features["labels"] = example_batch["label"]
+        
+        if "label" in example_batch:
+            # Rename label to labels to make it easier to pass to model forward
+            features["labels"] = example_batch["label"]
 
         return features
-
+    
 
 class InsideOutsideStringClassifier(LightningModule):
     def __init__(
@@ -110,7 +102,6 @@ class InsideOutsideStringClassifier(LightningModule):
         weight_decay: float = 0.0,
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
-        eval_splits: Optional[list] = None,
         **kwargs,
     ):
         super().__init__()
@@ -121,8 +112,6 @@ class InsideOutsideStringClassifier(LightningModule):
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, config=self.config)
         self.accuracy = torchmetrics.Accuracy()
         self.f1score = torchmetrics.F1Score(num_classes=2, multiclass=True)
-
-    #         self.mcc = torchmetrics.MatthewsCorrCoef(num_classes=2)
 
     def forward(self, **inputs):
         return self.model(**inputs)
@@ -144,25 +133,25 @@ class InsideOutsideStringClassifier(LightningModule):
         labels = batch["labels"]
 
         return {"loss": val_loss, "preds": preds, "labels": labels}
-    
-    def test_step(self, batch):
-        # Here we just reuse the validation_step for testing
-        print(batch)
+        
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        input_ids = torch.stack(batch["input_ids"], axis=1)
+        attention_mask = torch.stack(batch["attention_mask"], axis=1)
+        batch = {"input_ids": input_ids, "attention_mask": attention_mask}
         outputs = self(**batch)
-        return outputs
+        return torch.nn.functional.softmax(outputs.logits, dim=1)[:, 1]
 
     def validation_epoch_end(self, outputs):
         preds = torch.cat([x["preds"] for x in outputs]).detach().cpu().numpy()
         labels = torch.cat([x["labels"] for x in outputs]).detach().cpu().numpy()
         loss = torch.stack([x["loss"] for x in outputs]).mean()
         self.log("val_loss", loss, prog_bar=True)
-        #         self.log(self.accuracy(preds, labels), prog_bar=True)
         preds_cuda_tensor = torch.from_numpy(preds).float().cuda()
         labels_cuda_tensor = torch.from_numpy(labels).cuda()
         self.log("val_accuracy", self.accuracy(preds_cuda_tensor, labels_cuda_tensor), prog_bar=True)
         self.log("val_f1", self.f1score(preds_cuda_tensor, labels_cuda_tensor), prog_bar=True)
         return loss
-
+    
     def setup(self, stage=None) -> None:
         if stage != "fit":
             return
@@ -202,19 +191,5 @@ class InsideOutsideStringClassifier(LightningModule):
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         return [optimizer], [scheduler]
 
-
-# class InsideOutsideStringPredictor:
-
-#     def __init__(self, eval_dataset, span_method, eval_batch_size=32, num_workers=32):
-#         self.span_method = span_method
-#         self.eval_dataset = datasets.Dataset.from_pandas(eval_dataset)
-#         self.eval_batch_size = eval_batch_size
-#         self.num_workers = num_workers 
-
-#     def predict_batch(self, inside_model_path=None, outside_model_path=None):
-#         trainer = Trainer(gpus=1)
-#         test_dataloader = DataLoader(self.eval_dataset, batch_size=self.eval_batch_size, num_workers=self.num_workers)
-#         if self.span_method == "Inside":
-#             return trainer.test(ckpt_path=inside_model_path, dataloaders=test_dataloader)
-#         if self.span_method == "Outside":
-#             return trainer.test(ckpt_path=outside_model_path, dataloaders=test_dataloader)
+    
+    
