@@ -8,6 +8,10 @@ from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATI
 from weakly_supervised_parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH
 
 
+filterchars = punctuation_words + currency_tags_words
+filterchars = [char for char in filterchars if char not in list(",;-") and char not in "``" and char not in "''"]
+        
+        
 class NGramify:
     def __init__(self, sentence):
         self.sentence = sentence.split()
@@ -99,8 +103,6 @@ class PTBDataset:
         return self.data["sentence"].tolist()
 
     def preprocess(self):
-        filterchars = punctuation_words + currency_tags_words
-        filterchars = [char for char in filterchars if char not in list(",;") and char not in "``" and char not in "''"]
         self.data["sentence"] = self.data["sentence"].apply(lambda row: " ".join([sentence for sentence in row.split() if sentence not in filterchars]))
         return self.data
 
@@ -109,6 +111,7 @@ class PTBDataset:
         func = lambda x: RuleBasedHeuristic().add_contiguous_titlecase_words(row=[(index, character) for index, character in enumerate(x) if character.istitle() or "'" in character])
         titlecase_matches = [item for sublist in self.data['sentence'].str.split().apply(func).tolist() for item in sublist if len(item.split()) > 1]
         titlecase_matches_df = pd.Series(titlecase_matches)
+        titlecase_matches_df = titlecase_matches_df[~titlecase_matches_df.str.split().str[0].str.contains("'")].str.replace("''", "")
         most_frequent_start_token = RuleBasedHeuristic(corpus=self.retrieve_all_sentences()).augment_using_most_frequent_starting_token()
         most_frequent_start_token_df = titlecase_matches_df[titlecase_matches_df.str.startswith(most_frequent_start_token)].str.lower()
         constituent_samples = pd.DataFrame(dict(sentence=pd.concat([whole_span_slice, titlecase_matches_df, most_frequent_start_token_df]), label=1))
@@ -117,11 +120,11 @@ class PTBDataset:
     def seed_bootstrap_distituent(self):
         avg_sent_len = int(self.data["sentence"].str.split().str.len().mean())
         last_but_one_slice = self.data["sentence"].str.split().str[:-1].str.join(" ")
-        last_but_two_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len]["sentence"].str.split().str[:-2].str.join(" ")
-        last_but_three_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len + 10]["sentence"].str.split().str[:-3].str.join(" ")
-        last_but_four_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len  + 20]["sentence"].str.split().str[:-4].str.join(" ")
-        last_but_five_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len  + 30]["sentence"].str.split().str[:-5].str.join(" ")
-        last_but_six_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len + 40]["sentence"].str.split().str[:-6].str.join(" ")
+        last_but_two_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len + 10]["sentence"].str.split().str[:-2].str.join(" ")
+        last_but_three_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len + 20]["sentence"].str.split().str[:-3].str.join(" ")
+        last_but_four_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len  + 30]["sentence"].str.split().str[:-4].str.join(" ")
+        last_but_five_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len  + 40]["sentence"].str.split().str[:-5].str.join(" ")
+        last_but_six_slice = self.data[self.data["sentence"].str.split().str.len() > avg_sent_len + 50]["sentence"].str.split().str[:-6].str.join(" ")
         distituent_samples = pd.DataFrame(
             dict(
                 sentence=pd.concat(
@@ -139,7 +142,7 @@ class PTBDataset:
         )
         return distituent_samples
 
-    def train_validation_split(self, test_size=0.2, shuffle=True, seed=42):
+    def train_validation_split(self, test_size=0.5, shuffle=True, seed=42):
         self.preprocess()
         bootstrap_constituent_samples = self.seed_bootstrap_constituent()
         bootstrap_distituent_samples = self.seed_bootstrap_distituent()

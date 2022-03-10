@@ -24,7 +24,6 @@ if __name__ == "__main__":
                                           save_model_path=INSIDE_MODEL_PATH, 
                                           save_model_filename="inside_model")
 
-
     seed_everything(42)
     AVAIL_GPUS = min(1, torch.cuda.device_count())
 
@@ -38,6 +37,7 @@ if __name__ == "__main__":
         dirpath=INSIDE_MODEL_PATH,
         filename="inside_model-{epoch:02d}-{val_loss:.4f}",
         save_top_k=1,
+        # every_n_epochs=1,
         mode="min",
     )
     early_stopping = EarlyStopping(monitor="val_loss", patience=2, verbose=False, mode="min", check_finite=True)
@@ -45,4 +45,3 @@ if __name__ == "__main__":
     trainer = Trainer(accelerator="gpu", strategy="ddp", max_epochs=2, gpus=AVAIL_GPUS, callbacks=[checkpoint_callback, early_stopping])
     trainer.fit(model, datamodule=dm)
     trainer.validate(model, dm.val_dataloader())
-    trainer.save_checkpoint(INSIDE_MODEL_PATH + "best_model.ckpt", weights_only=True)
