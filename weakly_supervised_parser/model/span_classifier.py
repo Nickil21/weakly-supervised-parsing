@@ -1,9 +1,12 @@
 import torch
+import torch.nn as nn
 import datasets
 import torchmetrics
 from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule, LightningModule
-from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
+from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup, AutoModel
+from onnxruntime import InferenceSession
+from scipy.special import softmax
 
 
 class DataModule(LightningDataModule):
@@ -18,8 +21,9 @@ class DataModule(LightningDataModule):
         "labels",
     ]
 
-    def __init__(self, model_name_or_path, num_labels, max_seq_length, train_batch_size, eval_batch_size, num_workers,
-                 train_data_path=None, validation_data_path=None, test_data=None, **kwargs):
+    def __init__(self, model_name_or_path: str, num_labels=2, max_seq_length=192, train_batch_size=32, 
+                 eval_batch_size=32, num_workers=16,
+                 train_data_path=None, validation_data_path=None, **kwargs):
         super().__init__()
         self.model_name_or_path = model_name_or_path
         self.train_data_path = train_data_path
@@ -28,17 +32,12 @@ class DataModule(LightningDataModule):
         self.train_batch_size = train_batch_size
         self.eval_batch_size = eval_batch_size
         self.num_workers = num_workers
-        self.test_data = test_data
 
-        self.text_fields = ["sentence"]
+        self.text_fields = "sentence"
         self.num_labels = num_labels
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
 
     def setup(self, stage: str):
-        
-        if self.test_data is not None:
-            self.test_dataset = datasets.Dataset.from_pandas(self.test_data)
-            self.test_dataset = self.test_dataset.map(self.convert_to_features, batched=True, batch_size=None, load_from_cache_file=False)
         
         if self.train_data_path and self.validation_data_path:
             self.dataset = datasets.load_dataset( "csv", data_files={"train": self.train_data_path, "validation": self.validation_data_path})
@@ -57,12 +56,9 @@ class DataModule(LightningDataModule):
     def val_dataloader(self):
         return DataLoader(self.dataset["validation"], batch_size=self.eval_batch_size, num_workers=self.num_workers, pin_memory=True)
 
-    def predict_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=len(self.test_dataset), num_workers=self.num_workers, pin_memory=True)
-
     def convert_to_features(self, example_batch, indices=None):
 
-        texts_or_text_pairs = example_batch[self.text_fields[0]]
+        texts_or_text_pairs = example_batch[self.text_fields]
         
         # Tokenize the text/text pairs
         features = self.tokenizer.batch_encode_plus(
@@ -79,9 +75,9 @@ class DataModule(LightningDataModule):
         
         return features
     
-
+    
 class InsideOutsideStringClassifier(LightningModule):
-    def __init__(self, model_name_or_path, num_labels, lr, train_batch_size,
+    def __init__(self, model_name_or_path: str, num_labels=2, lr=3e-6, train_batch_size=2,
                  adam_epsilon=1e-8, warmup_steps=0, weight_decay=0.0, **kwargs):
         super().__init__()
 
@@ -95,28 +91,21 @@ class InsideOutsideStringClassifier(LightningModule):
         self.accuracy = torchmetrics.Accuracy()
         self.f1score = torchmetrics.F1Score(num_classes=2, multiclass=True)
 
-    def forward(self, **inputs):
-        return self.model(**inputs)
+    def forward(self, input_ids, attention_mask, labels=None):
+        return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
 
     def training_step(self, batch, batch_idx):
-        outputs = self(**batch)
+        outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         loss = outputs[0]
         return loss
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        outputs = self(**batch)
+        outputs = self(input_ids=batch["input_ids"], attention_mask=batch["attention_mask"], labels=batch["labels"])
         val_loss, logits = outputs[:2]
         preds = torch.argmax(logits, axis=1)
         labels = batch["labels"]
         return {"loss": val_loss, "preds": preds, "labels": labels}
         
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        input_ids = torch.stack(batch["input_ids"], axis=1)
-        attention_mask = torch.stack(batch["attention_mask"], axis=1)
-        batch = {"input_ids": input_ids, "attention_mask": attention_mask}
-        outputs = self(**batch)
-        return torch.nn.functional.softmax(outputs.logits, dim=1)[:, 1]
-
     def validation_epoch_end(self, outputs):
         preds = torch.cat([x["preds"] for x in outputs]).detach().cpu().numpy()
         labels = torch.cat([x["labels"] for x in outputs]).detach().cpu().numpy()
@@ -164,3 +153,25 @@ class InsideOutsideStringClassifier(LightningModule):
         )
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         return [optimizer], [scheduler]
+
+    
+class InsideOutsideStringPredictor:
+    
+    def __init__(self, model_name_or_path, pre_trained_model_path):
+        self.model_name_or_path = model_name_or_path
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
+        self.pre_trained_model = InferenceSession(pre_trained_model_path, providers=['CUDAExecutionProvider']) 
+        
+    def predict_span(self, sentence):
+        processed = self.tokenizer.encode_plus(sentence,
+                                               max_length=192,
+                                               padding="max_length",
+                                               add_special_tokens=True,
+                                               truncation=True,
+                                               return_tensors="np")
+
+        inputs = {"input": processed["input_ids"],
+                  "attention_mask": processed["attention_mask"]}
+
+        out = self.pre_trained_model.run(None, inputs)
+        return softmax(out[0])[:, 1]

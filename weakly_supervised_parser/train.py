@@ -4,7 +4,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import torch
 
 from argparse import ArgumentParser
-
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
@@ -111,12 +110,13 @@ def cli_main():
     # ------------
     # model
     # ------------
+   
+
     model = InsideOutsideStringClassifier(model_name_or_path=args.model_name_or_path, 
-                                          train_data_path=args.train_data_path, 
-                                          validation_data_path=args.validation_data_path,
                                           lr=args.lr,
                                           num_labels=args.num_labels,
                                           train_batch_size=args.train_batch_size)
+                                          
 
     # ------------
     # training
@@ -125,7 +125,21 @@ def cli_main():
     trainer = Trainer.from_argparse_args(args)
     trainer.fit(model, data_module)
     trainer.validate(model, data_module.val_dataloader())
-
+    
+    # --------
+    # saving
+    # -------
+    train_batch = next(iter(data_module.train_dataloader()))
+    
+    model.to_onnx(file_path="{}/{}.onnx".format(INSIDE_MODEL_PATH, args.model_variant), 
+                  input_sample=(train_batch["input_ids"].cuda(), train_batch["attention_mask"].cuda()),
+                  export_params=True,
+                  opset_version=11,
+                  input_names = ['input',  'attention_mask'],
+                  output_names = ['output'],
+                  dynamic_axes={'input' : {0 : 'batch_size'}, 
+                                'attention_mask': {0: 'batch_size'},
+                                'output' : {0 : 'batch_size'}})
     
 if __name__ == '__main__':
     cli_main()
