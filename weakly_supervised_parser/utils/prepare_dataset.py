@@ -142,7 +142,7 @@ class PTBDataset:
         )
         return distituent_samples
 
-    def train_validation_split(self, test_size=0.5, shuffle=True, seed=42):
+    def train_validation_split(self, seed, test_size=0.5, shuffle=True):
         self.preprocess()
         bootstrap_constituent_samples = self.seed_bootstrap_constituent()
         bootstrap_distituent_samples = self.seed_bootstrap_distituent()

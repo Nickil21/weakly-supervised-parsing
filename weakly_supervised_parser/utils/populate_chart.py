@@ -1,9 +1,11 @@
+import os
+import logging
 import pandas as pd
 import numpy as np
 
 from nltk.corpus import stopwords
-
 from pytorch_lightning import Trainer
+from datasets.utils import set_progress_bar_enabled
 
 from weakly_supervised_parser.utils.prepare_dataset import NGramify
 from weakly_supervised_parser.utils.create_inside_outside_strings import InsideOutside
@@ -11,7 +13,12 @@ from weakly_supervised_parser.model.span_classifier import InsideOutsideStringCl
 from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
 
 
-inside_model = InsideOutsideStringClassifier.load_from_checkpoint(checkpoint_path=INSIDE_MODEL_PATH + "inside_model-epoch=00-val_loss=0.1847.ckpt") #"best_model.ckpt")
+# Disable Dataset.map progress bar
+set_progress_bar_enabled(False)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+logging.getLogger("pytorch_lightning").setLevel(logging.WARNING)
+
+inside_model = InsideOutsideStringClassifier.load_from_checkpoint(checkpoint_path=INSIDE_MODEL_PATH + "inside_model.ckpt")
 # outside_model = InsideOutsideStringClassifier.load_from_checkpoint(checkpoint_path=OUTSIDE_MODEL_PATH + "best_model.ckpt")
 trainer = Trainer(accelerator="gpu", strategy="ddp", enable_progress_bar=False, gpus=-1) #, profiler="simple")
 
@@ -40,8 +47,14 @@ class PopulateCKYChart:
             outside_strings.append(outside_string)
 
         data = pd.DataFrame({"inside_sentence": inside_strings, "outside_sentence": outside_strings, "span": [span[0] for span in self.all_spans]})
-        data["inside_scores"] = trainer.predict(inside_model, 
-                                                dataloaders=DataModule(model_name_or_path="roberta-base", test_data=data.rename(columns={"inside_sentence": "sentence"})))[0]
+        data["inside_scores"] = trainer.predict(model=inside_model, 
+                                                dataloaders=DataModule(model_name_or_path="roberta-base", 
+                                                                       test_data=data.rename(columns={"inside_sentence": "sentence"}),
+                                                                       num_labels=2,
+                                                                       max_seq_length=128,
+                                                                       train_batch_size=32,
+                                                                       eval_batch_size=32,
+                                                                       num_workers=16))[0]
         # data["outside_scores"] = InsideOutsideStringPredictor(eval_dataset=data[["outside_sentence"]], span_method="Outside").predict_batch(outside_model_path=outside_model_path)
         data["scores"] = data["inside_scores"].copy()
         

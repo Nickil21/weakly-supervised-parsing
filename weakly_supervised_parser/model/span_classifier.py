@@ -1,13 +1,9 @@
 import torch
 import datasets
 import torchmetrics
-from torch.utils.data import DataLoader, Dataset
-from pytorch_lightning import LightningDataModule, LightningModule, Trainer
+from torch.utils.data import DataLoader
+from pytorch_lightning import LightningDataModule, LightningModule
 from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
-from datasets.utils import set_progress_bar_enabled
-
-# Disable Dataset.map progress bar
-set_progress_bar_enabled(False)
 
 
 class DataModule(LightningDataModule):
@@ -22,18 +18,8 @@ class DataModule(LightningDataModule):
         "labels",
     ]
 
-    def __init__(
-        self,
-        model_name_or_path: str,
-        max_seq_length: int = 128,
-        train_batch_size: int = 32,
-        eval_batch_size: int = 32,
-        num_workers: int = 32,
-        train_data_path=None,
-        validation_data_path=None,
-        test_data=None,
-        **kwargs,
-    ):
+    def __init__(self, model_name_or_path, num_labels, max_seq_length, train_batch_size, eval_batch_size, num_workers,
+                 train_data_path=None, validation_data_path=None, test_data=None, **kwargs):
         super().__init__()
         self.model_name_or_path = model_name_or_path
         self.train_data_path = train_data_path
@@ -45,7 +31,7 @@ class DataModule(LightningDataModule):
         self.test_data = test_data
 
         self.text_fields = ["sentence"]
-        self.num_labels = 2
+        self.num_labels = num_labels
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
 
     def setup(self, stage: str):
@@ -95,24 +81,17 @@ class DataModule(LightningDataModule):
     
 
 class InsideOutsideStringClassifier(LightningModule):
-    def __init__(
-        self,
-        model_name_or_path: str,
-        num_labels: int = 2,
-        learning_rate: float = 2e-5,
-        adam_epsilon: float = 1e-8,
-        warmup_steps: int = 0,
-        weight_decay: float = 0.0,
-        train_batch_size: int = 32,
-        eval_batch_size: int = 32,
-        **kwargs,
-    ):
+    def __init__(self, model_name_or_path, num_labels, lr, train_batch_size,
+                 adam_epsilon=1e-8, warmup_steps=0, weight_decay=0.0, **kwargs):
         super().__init__()
 
         self.save_hyperparameters()
         
-        self.config = AutoConfig.from_pretrained(model_name_or_path, num_labels=num_labels)
+        self.num_labels = num_labels
+        self.config = AutoConfig.from_pretrained(model_name_or_path, num_labels=self.num_labels)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, config=self.config)
+        self.lr = lr
+        self.train_batch_size = train_batch_size
         self.accuracy = torchmetrics.Accuracy()
         self.f1score = torchmetrics.F1Score(num_classes=2, multiclass=True)
 
@@ -127,14 +106,8 @@ class InsideOutsideStringClassifier(LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         outputs = self(**batch)
         val_loss, logits = outputs[:2]
-
-        if self.hparams.num_labels >= 1:
-            preds = torch.argmax(logits, axis=1)
-        elif self.hparams.num_labels == 1:
-            preds = logits.squeeze()
-
+        preds = torch.argmax(logits, axis=1)
         labels = batch["labels"]
-
         return {"loss": val_loss, "preds": preds, "labels": labels}
         
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
@@ -160,7 +133,7 @@ class InsideOutsideStringClassifier(LightningModule):
         train_loader = self.trainer.datamodule.train_dataloader()
 
         # Calculate total steps
-        tb_size = self.hparams.train_batch_size * max(1, self.trainer.gpus)
+        tb_size = self.train_batch_size * max(1, self.trainer.gpus)
         ab_size = tb_size * self.trainer.accumulate_grad_batches
         self.total_steps = int((len(train_loader.dataset) / ab_size) * float(self.trainer.max_epochs))
 
@@ -180,7 +153,7 @@ class InsideOutsideStringClassifier(LightningModule):
         ]
         optimizer = AdamW(
             optimizer_grouped_parameters,
-            lr=self.hparams.learning_rate,
+            lr=self.lr,
             eps=self.hparams.adam_epsilon,
         )
 
