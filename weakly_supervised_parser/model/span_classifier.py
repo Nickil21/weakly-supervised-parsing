@@ -1,10 +1,9 @@
 import torch
-import torch.nn as nn
 import datasets
 import torchmetrics
 from torch.utils.data import DataLoader
 from pytorch_lightning import LightningDataModule, LightningModule
-from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup, AutoModel
+from transformers import AdamW, AutoConfig, AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
 from onnxruntime import InferenceSession
 from scipy.special import softmax
 
@@ -21,9 +20,18 @@ class DataModule(LightningDataModule):
         "labels",
     ]
 
-    def __init__(self, model_name_or_path: str, num_labels=2, max_seq_length=192, train_batch_size=32, 
-                 eval_batch_size=32, num_workers=16,
-                 train_data_path=None, validation_data_path=None, **kwargs):
+    def __init__(
+        self,
+        model_name_or_path: str,
+        num_labels=2,
+        max_seq_length=192,
+        train_batch_size=32,
+        eval_batch_size=32,
+        num_workers=16,
+        train_data_path=None,
+        validation_data_path=None,
+        **kwargs
+    ):
         super().__init__()
         self.model_name_or_path = model_name_or_path
         self.train_data_path = train_data_path
@@ -38,9 +46,9 @@ class DataModule(LightningDataModule):
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
 
     def setup(self, stage: str):
-        
+
         if self.train_data_path and self.validation_data_path:
-            self.dataset = datasets.load_dataset( "csv", data_files={"train": self.train_data_path, "validation": self.validation_data_path})
+            self.dataset = datasets.load_dataset("csv", data_files={"train": self.train_data_path, "validation": self.validation_data_path})
             for split in self.dataset.keys():
                 self.dataset[split] = self.dataset[split].map(
                     self.convert_to_features,
@@ -59,30 +67,27 @@ class DataModule(LightningDataModule):
     def convert_to_features(self, example_batch, indices=None):
 
         texts_or_text_pairs = example_batch[self.text_fields]
-        
+
         # Tokenize the text/text pairs
         features = self.tokenizer.batch_encode_plus(
-            texts_or_text_pairs,
-            max_length=self.max_seq_length,
-            padding='max_length',
-            add_special_tokens=True,
-            truncation=True
+            texts_or_text_pairs, max_length=self.max_seq_length, padding="max_length", add_special_tokens=True, truncation=True
         )
-        
+
         if "label" in example_batch:
             # Rename label to labels to make it easier to pass to model forward
             features["labels"] = example_batch["label"]
-        
+
         return features
-    
-    
+
+
 class InsideOutsideStringClassifier(LightningModule):
-    def __init__(self, model_name_or_path: str, num_labels=2, lr=3e-6, train_batch_size=2,
-                 adam_epsilon=1e-8, warmup_steps=0, weight_decay=0.0, **kwargs):
+    def __init__(
+        self, model_name_or_path: str, num_labels=2, lr=3e-6, train_batch_size=2, adam_epsilon=1e-8, warmup_steps=0, weight_decay=0.0, **kwargs
+    ):
         super().__init__()
 
         self.save_hyperparameters()
-        
+
         self.num_labels = num_labels
         self.config = AutoConfig.from_pretrained(model_name_or_path, num_labels=self.num_labels)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, config=self.config)
@@ -105,7 +110,7 @@ class InsideOutsideStringClassifier(LightningModule):
         preds = torch.argmax(logits, axis=1)
         labels = batch["labels"]
         return {"loss": val_loss, "preds": preds, "labels": labels}
-        
+
     def validation_epoch_end(self, outputs):
         preds = torch.cat([x["preds"] for x in outputs]).detach().cpu().numpy()
         labels = torch.cat([x["labels"] for x in outputs]).detach().cpu().numpy()
@@ -114,8 +119,16 @@ class InsideOutsideStringClassifier(LightningModule):
         self.log("val_accuracy", self.accuracy(torch.from_numpy(preds).float().cuda(), torch.from_numpy(labels).cuda()), prog_bar=True)
         self.log("val_f1", self.f1score(torch.from_numpy(preds).float().cuda(), torch.from_numpy(labels).cuda()), prog_bar=True)
         return loss
-    
+
+    def predict_step(self, batch, batch_idx, dataloader_idx=0):
+        input_ids = torch.stack(batch["input_ids"], axis=1)
+        attention_mask = torch.stack(batch["attention_mask"], axis=1)
+        batch = {"input_ids": input_ids, "attention_mask": attention_mask}
+        outputs = self(**batch)
+        return torch.nn.functional.softmax(outputs.logits, dim=1)[:, 1]
+
     def setup(self, stage=None) -> None:
+        print("load stage")
         if stage != "fit":
             return
         # Get dataloader by calling it - train_dataloader() is called after setup() by default
@@ -154,24 +167,25 @@ class InsideOutsideStringClassifier(LightningModule):
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         return [optimizer], [scheduler]
 
-    
+
 class InsideOutsideStringPredictor:
-    
-    def __init__(self, model_name_or_path, pre_trained_model_path):
+    def __init__(self, model_name_or_path, pre_trained_model_path, max_length):
         self.model_name_or_path = model_name_or_path
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
-        self.pre_trained_model = InferenceSession(pre_trained_model_path, providers=['CUDAExecutionProvider']) 
-        
-    def predict_span(self, sentence):
-        processed = self.tokenizer.encode_plus(sentence,
-                                               max_length=192,
-                                               padding="max_length",
-                                               add_special_tokens=True,
-                                               truncation=True,
-                                               return_tensors="np")
+        self.pre_trained_model = InferenceSession(pre_trained_model_path, providers=["CUDAExecutionProvider"])
+        self.max_length = max_length
 
-        inputs = {"input": processed["input_ids"],
-                  "attention_mask": processed["attention_mask"]}
+    def preprocess_function(self, data):
+        features = self.tokenizer(
+            data["sentence"], max_length=self.max_length, padding="max_length", add_special_tokens=True, truncation=True, return_tensors="np"
+        )
+        return features
+
+    def predict_span(self, spans):
+        spans_dataset = datasets.Dataset.from_pandas(spans)
+        processed = spans_dataset.map(self.preprocess_function, batched=True, batch_size=None)
+
+        inputs = {"input": processed["input_ids"], "attention_mask": processed["attention_mask"]}
 
         out = self.pre_trained_model.run(None, inputs)
         return softmax(out[0])[:, 1]
