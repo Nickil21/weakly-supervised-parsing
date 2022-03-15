@@ -120,15 +120,7 @@ class InsideOutsideStringClassifier(LightningModule):
         self.log("val_f1", self.f1score(torch.from_numpy(preds).float().cuda(), torch.from_numpy(labels).cuda()), prog_bar=True)
         return loss
 
-    def predict_step(self, batch, batch_idx, dataloader_idx=0):
-        input_ids = torch.stack(batch["input_ids"], axis=1)
-        attention_mask = torch.stack(batch["attention_mask"], axis=1)
-        batch = {"input_ids": input_ids, "attention_mask": attention_mask}
-        outputs = self(**batch)
-        return torch.nn.functional.softmax(outputs.logits, dim=1)[:, 1]
-
     def setup(self, stage=None) -> None:
-        print("load stage")
         if stage != "fit":
             return
         # Get dataloader by calling it - train_dataloader() is called after setup() by default

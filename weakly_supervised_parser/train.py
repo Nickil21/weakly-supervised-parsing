@@ -145,3 +145,5 @@ def cli_main():
 
 if __name__ == "__main__":
     cli_main()
+
+#  python weakly_supervised_parser/train.py --max_seq_len 200 --model_variant inside
