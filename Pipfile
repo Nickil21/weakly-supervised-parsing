@@ -4,11 +4,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [packages]
+torch = "1.10.2"
 pandas = "1.4.1"
 pytorch-lightning = "1.5.10"
 nltk = "3.7"
 transformers = "4.17.0"
 sklearn = "1.0.2"
+onnxruntime-gpu = "1.10.0"
 
 [requires]
 python_version = "3.9"
