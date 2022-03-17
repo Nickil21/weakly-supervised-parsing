@@ -53,10 +53,22 @@ Delete the unnecessary PTB files inside the `TEMP/` folder.
 
     rm -rf ./TEMP/corrected/
 
+## Train
+
+    python weakly_supervised_parser/train.py \
+            --model_name_or_path roberta-base \
+            --seed 42 \
+            --filename inside_model \
+            --max_seq_length 256
+
 ## Inference
 
     python weakly_supervised_parser/inference.py --predict_on_test \
-                                                --model_name_or_path roberta-base \
-                                                --pre_trained_model_path weakly_supervised_parser/model/TRAINED_MODEL/INSIDE/inside.onnx \
-                                                --max_seq_length 200 \
-                                                --save_path TEMP/predictions/english/inside_model_predictions.txt \
+            --model_name_or_path roberta-base \
+            --pre_trained_model_path weakly_supervised_parser/model/TRAINED_MODEL/INSIDE/inside.onnx \
+            --max_seq_length 200 \
+            --save_path TEMP/predictions/english/inside_model_predictions.txt
+
+# Tests
+
+    pytest weakly_supervised_parser/tests --disable-pytest-warnings

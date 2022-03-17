@@ -142,4 +142,4 @@ def cli_main():
 if __name__ == "__main__":
     cli_main()
 
-#  python weakly_supervised_parser/train.py --model_name_or_path roberta-base --seed 42 --filename inside_model --max_seq_length 200
+#  python weakly_supervised_parser/train.py --model_name_or_path roberta-base --seed 42 --filename inside_model --max_seq_length 256
