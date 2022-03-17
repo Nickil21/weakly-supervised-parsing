@@ -1,20 +1,6 @@
 import re
 import numpy as np
-
-
-class Tree(object):
-    def __init__(self, label, children, word):
-        self.label = label
-        self.children = children
-        self.word = word
-
-    def __str__(self):
-        return self.linearize()
-
-    def linearize(self):
-        if not self.children:
-            return "({} {})".format(self.label, self.word)
-        return "({} {})".format(self.label, " ".join(c.linearize() for c in self.children))
+from weakly_supervised_parser.tree.helpers import Tree
 
 
 def CKY(sent_all, prob_s, label_s, verbose=False):
