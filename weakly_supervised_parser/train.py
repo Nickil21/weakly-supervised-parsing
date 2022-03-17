@@ -14,14 +14,14 @@ from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATI
 from weakly_supervised_parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH, INSIDE_MODEL_PATH
 
 
-def load_callbacks(model_variant, output_path):
+def load_callbacks(filename, output_path):
     callbacks = []
     callbacks.append(EarlyStopping(monitor="val_loss", patience=2, mode="min", check_finite=True))
     callbacks.append(
         ModelCheckpoint(
             monitor="val_loss",
             dirpath=output_path,
-            filename=model_variant,  # + "-{epoch:02d}-{val_loss:.4f}"
+            filename=filename,  # + "-{epoch:02d}-{val_loss:.4f}"
             save_top_k=1,
             save_weights_only=True,
             mode="min",
@@ -43,19 +43,17 @@ def cli_main():
     )
 
     parser.add_argument(
-        "--train_data_path", type=str, default=INSIDE_BOOTSTRAPPED_DATASET_PATH + "train.csv", help="The csv file containing the training data"
+        "--train_data_path", type=str, default=INSIDE_BOOTSTRAPPED_DATASET_PATH + "train_seed_bootstrap.csv", help="The csv file containing the training data"
     )
 
     parser.add_argument(
         "--validation_data_path",
         type=str,
-        default=INSIDE_BOOTSTRAPPED_DATASET_PATH + "validation.csv",
+        default=INSIDE_BOOTSTRAPPED_DATASET_PATH + "validation_seed_bootstrap.csv",
         help="The csv file containing the validation data",
     )
 
-    parser.add_argument(
-        "--model_variant", type=str, required=True, help="Options include (inside_model/inside_self_trained_model/inside_outside_co_trained_model)"
-    )
+    parser.add_argument("--filename", type=str, required=True, help="Path to save the ONNX pre-trained model")
 
     parser.add_argument("--output_dir", type=str, default=INSIDE_MODEL_PATH, help="Path to the inside/outside model")
 
@@ -64,8 +62,6 @@ def cli_main():
     parser.add_argument("--lr", type=float, default=3e-6, help="Learning Rate")
 
     parser.add_argument("--gpus", type=int, default=min(1, torch.cuda.device_count()), help="Number of GPUs to train on")
-
-    parser.add_argument("--strategy", type=str, default="ddp", help="Different training strategies on multiple GPUs")
 
     parser.add_argument("--devices", type=int, default=1, help="Number of devices to be used by the accelerator for the training strategy")
 
@@ -82,12 +78,12 @@ def cli_main():
 
     parser.add_argument("--num_workers", default=16, type=int, help="Number of workers used in the data loader")
 
-    parser.add_argument("--max_seq_length", default=192, type=int, help="The maximum total input sequence length after tokenization")
+    parser.add_argument("--max_seq_length", default=256, type=int, help="The maximum total input sequence length after tokenization")
 
     parser.add_argument("--num_labels", default=2, type=int, help="Binary classification, hence two classes")
 
     args = parser.parse_args()
-    args.callbacks = load_callbacks(model_variant=args.model_variant, output_path=args.output_dir)
+    args.callbacks = load_callbacks(filename=args.filename, output_path=args.output_dir)
 
     # -------------------
     # seed bootstrapping
@@ -133,7 +129,7 @@ def cli_main():
     train_batch = next(iter(data_module.train_dataloader()))
 
     model.to_onnx(
-        file_path="{}/{}.onnx".format(INSIDE_MODEL_PATH, args.model_variant),
+        file_path="{}/{}.onnx".format(INSIDE_MODEL_PATH, args.filename),
         input_sample=(train_batch["input_ids"].cuda(), train_batch["attention_mask"].cuda()),
         export_params=True,
         opset_version=11,
@@ -146,4 +142,4 @@ def cli_main():
 if __name__ == "__main__":
     cli_main()
 
-#  python weakly_supervised_parser/train.py --max_seq_len 200 --model_variant inside
+#  python weakly_supervised_parser/train.py --model_name_or_path roberta-base --seed 42 --filename inside_model --max_seq_length 200
