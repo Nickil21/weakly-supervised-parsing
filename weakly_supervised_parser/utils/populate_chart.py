@@ -24,7 +24,7 @@ class PopulateCKYChart:
         self.span_scores = np.zeros((self.sentence_length + 1, self.sentence_length + 1), dtype=float)
         self.all_spans = NGramify(self.sentence).generate_ngrams(single_span=True, whole_span=True)
 
-    def fill_chart(self, inside_model, outside_model):
+    def fill_chart(self, inside_model, outside_model, chunks=100):
         inside_strings = []
         outside_strings = []
         inside_scores = []
@@ -36,8 +36,13 @@ class PopulateCKYChart:
             outside_strings.append(outside_string)
 
         data = pd.DataFrame({"inside_sentence": inside_strings, "outside_sentence": outside_strings, "span": [span[0] for span in self.all_spans]})
-
-        inside_scores.extend(inside_model.predict_span(spans=data.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
+       
+        if data.shape[0] > chunks:
+            data_chunks = np.array_split(data, data.shape[0] // chunks)
+            for data_chunk in data_chunks:
+                inside_scores.extend(inside_model.predict_span(spans=data_chunk.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
+        else:
+            inside_scores.extend(inside_model.predict_span(spans=data.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
         # outside_scores.extend(outside_model.predict_span(spans=data.rename(columns={"outside_sentence": "sentence"})[["sentence"]]))
 
         data["inside_scores"] = inside_scores

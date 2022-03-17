@@ -91,6 +91,7 @@ class InsideOutsideStringClassifier(LightningModule):
         self.num_labels = num_labels
         self.config = AutoConfig.from_pretrained(model_name_or_path, num_labels=self.num_labels)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name_or_path, config=self.config)
+        self.model.gradient_checkpointing_enable()
         self.lr = lr
         self.train_batch_size = train_batch_size
         self.accuracy = torchmetrics.Accuracy()
@@ -168,9 +169,7 @@ class InsideOutsideStringPredictor:
         self.max_length = max_length
 
     def preprocess_function(self, data):
-        features = self.tokenizer(
-            data["sentence"], max_length=self.max_length, padding="max_length", add_special_tokens=True, truncation=True, return_tensors="np"
-        )
+        features = self.tokenizer(data["sentence"], max_length=self.max_length, padding="max_length", add_special_tokens=True, truncation=True)
         return features
 
     def predict_span(self, spans):

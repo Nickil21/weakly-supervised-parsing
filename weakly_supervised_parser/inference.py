@@ -19,7 +19,7 @@ class Predictor:
         self.sentence = sentence
         self.sentence_list = sentence.split()
 
-    def obtain_best_parse(self, inside_model, outside_model, return_df=False):
+    def obtain_best_parse(self, inside_model=None, outside_model=None, return_df=False):
         unique_tokens_flag, span_scores, df = PopulateCKYChart(sentence=self.sentence).fill_chart(inside_model=inside_model, outside_model=outside_model)
         if unique_tokens_flag:
             best_parse = "(S " + " ".join(["(S " + item  + ")" for item in self.sentence_list]) + ")"
@@ -121,5 +121,5 @@ def main():
 if __name__ == "__main__":
     main()
     
-# python weakly_supervised_parser/inference.py --predict_on_test --model_name_or_path roberta-base --pre_trained_model_path weakly_supervised_parser/model/BOOTSTRAP_DATA/INSIDE/inside.onnx  --max_seq_length 200  --save_path TEMP/predictions/english/inside_model_predictions.txt
+# python weakly_supervised_parser/inference.py --predict_on_test --model_name_or_path roberta-base --pre_trained_model_path weakly_supervised_parser/model/TRAINED_MODEL/INSIDE/inside.onnx  --max_seq_length 256  --save_path TEMP/predictions/english/inside_model_predictions.txt
 # python weakly_supervised_parser/inference.py --predict_on_train --save_path TEMP/predictions/english/inside_train_predictions.txt
