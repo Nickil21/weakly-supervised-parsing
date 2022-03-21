@@ -19,7 +19,7 @@ class SelfTrainingClassifier:
         unlabeledy_old = []
         # re-train, labeling unlabeled instances with model predictions, until convergence
         i = 0
-        while (len(unlabeledy_old) == 0 or np.any(unlabeledy!=unlabeledy_old)) and i < self.max_iter:
+        while (len(unlabeledy_old) == 0 or np.any(unlabeledy != unlabeledy_old)) and i < self.max_iter:
             unlabeledy_old = np.copy(unlabeledy)
             uidx = np.where((unlabeledprob[:, 0] > self.prob_threshold) | (unlabeledprob[:, 1] > self.prob_threshold))[0]
             
