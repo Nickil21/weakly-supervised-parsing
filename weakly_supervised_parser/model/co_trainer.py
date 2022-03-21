@@ -113,21 +113,21 @@ class CoTrainingClassifier:
         except:
             return False
 
-    def predict(self, inside_string, outside_string):
-        inside_preds = self.inside_model.predict(inside_string)
-        outside_preds = self.outside_model.predict(outside_string)
+    def predict(self, inside_strings, outside_strings):
+        inside_preds = self.inside_model.predict(inside_strings)
+        outside_preds = self.outside_model.predict(outside_strings)
 
-        proba_supported = self.supports_proba(self.inside_model, inside_string[0]) and self.supports_proba(self.outside_model, outside_string[0])
+        proba_supported = self.supports_proba(self.inside_model, inside_strings[0]) and self.supports_proba(self.outside_model, outside_strings[0])
 
         # fill y_pred with -1 so we can identify the samples in which the classifiers failed to agree
-        y_pred = np.asarray([-1] * inside_string.shape[0])
+        y_pred = np.asarray([-1] * inside_strings.shape[0])
 
         for i, (inside_pred, outside_pred) in enumerate(zip(inside_preds, outside_preds)):
             if inside_pred == outside_pred:
                 y_pred[i] = inside_pred
             elif proba_supported:
-                inside_probs = self.inside_model.predict_proba([inside_string[i]])[0]
-                outside_probs = self.outside_model.predict_proba([outside_string[i]])[0]
+                inside_probs = self.inside_model.predict_proba([inside_strings[i]])[0]
+                outside_probs = self.outside_model.predict_proba([outside_strings[i]])[0]
                 sum_y_probs = [prob1 + prob2 for (prob1, prob2) in zip(inside_probs, outside_probs)]
                 max_sum_prob = max(sum_y_probs)
                 y_pred[i] = sum_y_probs.index(max_sum_prob)
@@ -141,12 +141,12 @@ class CoTrainingClassifier:
 
         return y_pred
 
-    def predict_proba(self, inside_string, outside_string):
+    def predict_proba(self, inside_strings, outside_strings):
         """Predict the probability of the samples belonging to each class."""
-        y_proba = np.full((inside_string.shape[0], 2), -1, np.float)
+        y_proba = np.full((inside_strings.shape[0], 2), -1, np.float)
 
-        inside_proba = self.inside_model.predict_proba(inside_string)
-        outside_proba = self.outside_model.predict_proba(outside_string)
+        inside_proba = self.inside_model.predict_proba(inside_strings)
+        outside_proba = self.outside_model.predict_proba(outside_strings)
 
         for i, (y1_i_dist, y2_i_dist) in enumerate(zip(inside_proba, outside_proba)):
             y_proba[i][0] = (y1_i_dist[0] + y2_i_dist[0]) / 2
