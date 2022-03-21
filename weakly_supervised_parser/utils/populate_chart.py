@@ -12,7 +12,7 @@ from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITHOUT_PUNCTU
 # Disable Dataset.map progress bar
 set_progress_bar_enabled(False)
 
-ptb = PTBDataset(training_data_path=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH)
+ptb = PTBDataset(data_path=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH)
 ptb_top_100_common = [item.lower() for item in RuleBasedHeuristic(corpus=ptb.retrieve_all_sentences()).get_top_tokens(top_most_common_ptb=100)]
 ptb_most_common_first_token = RuleBasedHeuristic(corpus=ptb.retrieve_all_sentences()).augment_using_most_frequent_starting_token(N=1)[0][0].lower()
 

@@ -89,8 +89,8 @@ class DataLoaderHelper:
 
 
 class PTBDataset:
-    def __init__(self, training_data_path):
-        self.data = pd.read_csv(training_data_path, sep="\t", header=None, names=["sentence"])
+    def __init__(self, data_path):
+        self.data = pd.read_csv(data_path, sep="\t", header=None, names=["sentence"])
         self.data["sentence"] = self.data
 
     def __len__(self):
@@ -99,7 +99,9 @@ class PTBDataset:
     def __getitem__(self, index):
         return self.data["sentence"].loc[index]
 
-    def retrieve_all_sentences(self):
+    def retrieve_all_sentences(self, N=None):
+        if N:
+            return self.data["sentence"].iloc[:N].tolist()
         return self.data["sentence"].tolist()
 
     def preprocess(self):
