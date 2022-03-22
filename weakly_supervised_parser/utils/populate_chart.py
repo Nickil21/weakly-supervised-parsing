@@ -40,11 +40,12 @@ class PopulateCKYChart:
         if data.shape[0] > chunks:
             data_chunks = np.array_split(data, data.shape[0] // chunks)
             for data_chunk in data_chunks:
-                inside_scores.extend(inside_model.predict_span(spans=data_chunk.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
+                inside_scores.extend(inside_model.predict(spans=data_chunk.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
         else:
-            inside_scores.extend(inside_model.predict_span(spans=data.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
+            inside_scores.extend(inside_model.predict(spans=data.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
         # outside_scores.extend(outside_model.predict_span(spans=data.rename(columns={"outside_sentence": "sentence"})[["sentence"]]))
-
+        
+        # Normalize
         data["inside_scores"] = inside_scores
 
         data.loc[

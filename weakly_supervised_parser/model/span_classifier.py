@@ -28,7 +28,8 @@ class LightningModel(LightningModule):
         self.lr = lr
         self.train_batch_size = train_batch_size
         self.accuracy = torchmetrics.Accuracy()
-        self.f1score = torchmetrics.F1Score(num_classes=2, multiclass=True)
+        self.f1score = torchmetrics.F1Score(num_classes=2)
+        self.mcc = torchmetrics.MatthewsCorrCoef(num_classes=2)
 
     def forward(self, input_ids, attention_mask, labels=None):
         return self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
@@ -46,12 +47,14 @@ class LightningModel(LightningModule):
         return {"loss": val_loss, "preds": preds, "labels": labels}
 
     def validation_epoch_end(self, outputs):
-        preds = torch.cat([x["preds"] for x in outputs]).detach().cpu().numpy()
-        labels = torch.cat([x["labels"] for x in outputs]).detach().cpu().numpy()
+        preds = torch.cat([x["preds"] for x in outputs])
+        labels = torch.cat([x["labels"] for x in outputs])
         loss = torch.stack([x["loss"] for x in outputs]).mean()
+    
         self.log("val_loss", loss, prog_bar=True)
-        self.log("val_accuracy", self.accuracy(torch.from_numpy(preds).float().cuda(), torch.from_numpy(labels).cuda()), prog_bar=True)
-        self.log("val_f1", self.f1score(torch.from_numpy(preds).float().cuda(), torch.from_numpy(labels).cuda()), prog_bar=True)
+        self.log("val_accuracy", self.accuracy(preds, labels.squeeze()), prog_bar=True)
+        self.log("val_f1", self.f1score(preds, labels.squeeze()), prog_bar=True)
+        self.log("val_mcc", self.mcc(preds, labels.squeeze()), prog_bar=True)
         return loss
 
     def setup(self, stage=None):
