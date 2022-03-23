@@ -1,5 +1,7 @@
 import os
+import torch
 import datasets
+import numpy as np
 import pandas as pd
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -16,7 +18,6 @@ from weakly_supervised_parser.model.span_classifier import LightningModel
 from weakly_supervised_parser.utils.prepare_dataset import PTBDataset
 from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
 from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
-
 
 
 class InsideOutsideStringClassifier:
@@ -98,16 +99,25 @@ class InsideOutsideStringClassifier:
                                   truncation=True, 
                                   return_tensors="np")
         return features
-
-    def predict(self, spans):
+    
+    def process_spans(self, spans):
         spans_dataset = datasets.Dataset.from_pandas(spans)
         processed = spans_dataset.map(self.preprocess_function, batched=True, batch_size=None)
-
         inputs = {"input": processed["input_ids"], "attention_mask": processed["attention_mask"]}
+        with torch.no_grad():
+            return softmax(self.model.run(None, inputs)[0], axis=1)
 
-        out = self.model.run(None, inputs)
-        return softmax(out[0])[:, 1]
-
+    def predict_proba(self, spans):
+        batches = 1000
+        if spans.shape[0] > batches:
+            span_batches = np.array_split(spans, spans.shape[0] // batches)
+            return [self.process_spans(span_batch) for span_batch in span_batches]
+        else:
+            return self.process_spans(spans)
+    
+    def predict(self, spans):
+        return self.predict_proba(spans).argmax(axis=1)
+    
     
 if __name__ == "__main__":
     
@@ -131,6 +141,6 @@ if __name__ == "__main__":
     model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
 
     # predict
-    df = pd.DataFrame(dict(sentence=["the best!"]), index=[0])
+    df = pd.DataFrame(dict(sentence=["But fund managers say"]))
                      
-    print(model.predict(spans=df))
+    print(model.predict_proba(spans=df)[:, 1])

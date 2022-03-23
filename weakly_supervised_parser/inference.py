@@ -20,8 +20,8 @@ class Predictor:
         self.sentence = sentence
         self.sentence_list = sentence.split()
 
-    def obtain_best_parse(self, inside_model=None, outside_model=None, return_df=False):
-        unique_tokens_flag, span_scores, df = PopulateCKYChart(sentence=self.sentence).fill_chart(inside_model=inside_model, outside_model=outside_model)
+    def obtain_best_parse(self, model, batch_size, return_df=False):
+        unique_tokens_flag, span_scores, df = PopulateCKYChart(sentence=self.sentence).fill_chart(model=model, batches=batch_size)
 
         if unique_tokens_flag:
             best_parse = "(S " + " ".join(["(S " + item  + ")" for item in self.sentence_list]) + ")"
@@ -34,8 +34,8 @@ class Predictor:
         return best_parse
         
     
-def process_test_sample(index, sentence, gold_file_path, inside_model=None, outside_model=None):
-    best_parse = Predictor(sentence=sentence).obtain_best_parse(inside_model=inside_model, outside_model=outside_model) 
+def process_test_sample(index, sentence, gold_file_path, model, batch_size):
+    best_parse = Predictor(sentence=sentence).obtain_best_parse(model=model, batch_size=batch_size) 
     gold_standard = DataLoaderHelper(input_file_object=gold_file_path)
     sentence_f1 = calculate_F1_for_spans(tree_to_spans(gold_standard[index]), tree_to_spans(best_parse))
     print("Index: {} <> F1: {:.2f}".format(index, sentence_f1))
@@ -58,15 +58,11 @@ def main():
                        help="Path to save the final trees")
 
     parser.add_argument("--max_seq_length", default=256, type=int,
-                    help="The maximum total input sequence length after tokenization")
+                       help="The maximum total input sequence length after tokenization")
 
     args = parser.parse_args()
     
-#     inside_model = InsideOutsideStringPredictor(model_name_or_path=args.model_name_or_path, 
-#                                                 pre_trained_model_path=args.pre_trained_model_path,
-#                                                 max_length=args.max_seq_length)
-    
-    inside_model = InsideOutsideStringClassifier(model_name_or_path=args.model_name_or_path)
+    inside_model = InsideOutsideStringClassifier(model_name_or_path=args.model_name_or_path, max_seq_length=args.max_seq_length)
     inside_model.load_model(pre_trained_model_path=args.pre_trained_model_path, providers="CUDAExecutionProvider")
     
     with open(args.save_path, "w") as out_file:    

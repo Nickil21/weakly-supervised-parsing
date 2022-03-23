@@ -24,7 +24,7 @@ class PopulateCKYChart:
         self.span_scores = np.zeros((self.sentence_length + 1, self.sentence_length + 1), dtype=float)
         self.all_spans = NGramify(self.sentence).generate_ngrams(single_span=True, whole_span=True)
 
-    def fill_chart(self, inside_model, outside_model, chunks=100):
+    def fill_chart(self, model, batches=100):
         inside_strings = []
         outside_strings = []
         inside_scores = []
@@ -37,15 +37,14 @@ class PopulateCKYChart:
 
         data = pd.DataFrame({"inside_sentence": inside_strings, "outside_sentence": outside_strings, "span": [span[0] for span in self.all_spans]})
        
-        if data.shape[0] > chunks:
-            data_chunks = np.array_split(data, data.shape[0] // chunks)
-            for data_chunk in data_chunks:
-                inside_scores.extend(inside_model.predict(spans=data_chunk.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
+        if data.shape[0] > batches:
+            data_batches = np.array_split(data, data.shape[0] // batches)
+            for data_batch in data_batches:
+                inside_scores.extend(model.predict_proba(spans=data_batch.rename(columns={"inside_sentence": "sentence"})[["sentence"]])[:, 1])
         else:
-            inside_scores.extend(inside_model.predict(spans=data.rename(columns={"inside_sentence": "sentence"})[["sentence"]]))
-        # outside_scores.extend(outside_model.predict_span(spans=data.rename(columns={"outside_sentence": "sentence"})[["sentence"]]))
+            inside_scores.extend(model.predict_proba(spans=data.rename(columns={"inside_sentence": "sentence"})[["sentence"]])[:, 1])
+        # outside_scores.extend(outside_model.predict_proba(spans=data.rename(columns={"outside_sentence": "sentence"})[["sentence"]])[:, 1])
         
-        # Normalize
         data["inside_scores"] = inside_scores
 
         data.loc[

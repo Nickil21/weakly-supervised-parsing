@@ -160,6 +160,7 @@ class PTBDataset:
         bootstrap_distituent_samples = self.seed_bootstrap_distituent()
         df = pd.concat([bootstrap_constituent_samples, bootstrap_distituent_samples], ignore_index=True)
         df = df.drop_duplicates(subset=["sentence"]).dropna(subset=["sentence"])
+        df["sentence"] = df["sentence"].str.strip()
         df = df[df["sentence"].str.split().str.len() > 1]
         train, validation = train_test_split(df, test_size=test_size, random_state=seed, shuffle=shuffle)
         train = train.head(8000)
