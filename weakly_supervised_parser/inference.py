@@ -69,7 +69,7 @@ def main():
         test_sentences = DataLoaderHelper(input_file_object=PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
         test_gold_file_path = PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
         for test_index, test_sentence in enumerate(test_sentences):
-            best_parse = process_test_sample(test_index, test_sentence, test_gold_file_path, inside_model=inside_model)
+            best_parse = process_test_sample(test_index, test_sentence, test_gold_file_path, model=inside_model, batch_size=100)
             out_file.write(best_parse + "\n")
 
         

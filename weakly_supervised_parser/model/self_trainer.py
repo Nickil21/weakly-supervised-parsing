@@ -20,27 +20,37 @@ def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_row
         best_parse_get_constituents = get_constituents(best_parse)
         best_parse_get_distituents = get_distituents(best_parse)
         
-        constituents_proba = model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_constituents)))[:, 1]
-        distituents_proba = model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_distituents)))[:, 0]
+        if best_parse_get_constituents:
+            constituents_proba = model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_constituents)))[:, 1]
+            df_constituents = pd.DataFrame({"sentence": best_parse_get_constituents, "label": constituents_proba})
+            df_constituents["label"] = np.where(df_constituents["label"] > threshold, 1, -1)
         
-        df_constituents = pd.DataFrame({"sentence": best_parse_get_constituents,
-                                        "label": constituents_proba})
-        df_distituents = pd.DataFrame({"sentence": best_parse_get_distituents,
-                                       "label": distituents_proba})
+        if best_parse_get_distituents:
+            distituents_proba = model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_distituents)))[:, 0]
+            df_distituents = pd.DataFrame({"sentence": best_parse_get_distituents, "label": distituents_proba})
+            df_distituents["label"] = np.where(df_distituents["label"] > threshold, 0, -1)
+            
+        if best_parse_get_constituents and best_parse_get_distituents:
+            out = pd.concat([df_constituents, df_distituents])
+            
+        elif best_parse_get_constituents and not best_parse_get_distituents:
+            out = df_constituents
+            
+        elif best_parse_get_distituents and not best_parse_get_constituents:
+            out = df_distituents
+           
+        lst.append(out)
         
-        df_constituents["label"] = np.where(df_constituents["label"] > threshold, 1, -1)
-        df_distituents["label"] = np.where(df_distituents["label"] > threshold, 0, -1)
-        
-        lst.append(pd.concat([df_constituents, df_distituents]))
         if train_index == num_samples:
             break
             
     df_out = pd.concat(lst).sample(frac=1., random_state=42)
     df_out.reset_index(drop=True, inplace=True)
     least_confident_preds_idx = df_out[df_out["label"] == -1].index.values
-    most_confident_preds_idx = df_out[df_out["label"].isin([0, 1])].index.values
-    valid_idx = most_confident_preds_idx[:num_valid_rows]
-    train_idx = most_confident_preds_idx[num_valid_rows:]
+    most_confident_distituent_preds_idx = df_out[df_out["label"] == 0].index.values
+    most_confident_constituent_preds_idx = df_out[df_out["label"] == 1].index.values
+    valid_idx = np.concatenate((most_confident_constituent_preds_idx[:num_valid_rows // 4], most_confident_distituent_preds_idx[:num_valid_rows // 2]))
+    train_idx = [index for index in df_out.index.tolist() if index not in valid_idx]
     valid_df = df_out.loc[valid_idx]
     train_df = df_out.loc[np.concatenate((train_idx, least_confident_preds_idx))]
     return train_df, valid_df
@@ -64,11 +74,11 @@ class SelfTrainingClassifier:
         
         self.inside_model.fit(train_df=train_df,
                               eval_df=valid_inside,
-                              train_batch_size=8,
-                              eval_batch_size=8,
-                              max_epochs=2,
+                              train_batch_size=32,
+                              eval_batch_size=32,
+                              max_epochs=10,
                               outputdir=INSIDE_MODEL_PATH,
-                              filename="inside_model_self_train_model_0")
+                              filename="inside_model_self_train_0")
         
         unlabeledy = self.inside_model.predict(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
         unlabeledprob = self.inside_model.predict_proba(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
@@ -84,13 +94,13 @@ class SelfTrainingClassifier:
             
             self.inside_model.fit(train_df=new_train_df,
                                   eval_df=valid_inside,
-                                  train_batch_size=8,
-                                  eval_batch_size=8,
-                                  max_epochs=2,
+                                  train_batch_size=32,
+                                  eval_batch_size=32,
+                                  max_epochs=10,
                                   outputdir=INSIDE_MODEL_PATH,
-                                  filename=f"inside_self_train_model_{idx}")
+                                  filename=f"inside_model_self_train_{idx+1}")
                                            
-            self.inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + f"inside_self_train_model_{idx+1}.onnx",               
+            self.inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + f"inside_model_self_train_{idx+1}.onnx",               
                                          providers="CUDAExecutionProvider")
             
             unlabeledy = self.inside_model.predict(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
@@ -122,7 +132,12 @@ if __name__ == "__main__":
     inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
     
     # predict on train
-    newtrain, newvalid = prepare_data_self_train(model=inside_model)
+    newtrain, newvalid = prepare_data_self_train(model=inside_model, threshold=0.99, num_samples=1000, num_valid_rows=10000)
+    
+    print(newtrain.shape)
+    print(newtrain["label"].value_counts())
+    print(newvalid.shape)
+    print(newvalid["label"].value_counts())
     
     clf = SelfTrainingClassifier(inside_model)
     clf.fit(train_inside=newtrain, valid_inside=newvalid)
