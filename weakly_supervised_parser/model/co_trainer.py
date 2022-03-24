@@ -3,7 +3,7 @@ import numpy as np
 
 
 class CoTrainingClassifier:
-    def __init__(self, inside_model, outside_model, pos=-1, neg=-1, num_iterations=5, pool_of_unlabeled_samples=75):
+    def __init__(self, inside_model, outside_model, num_iterations=5, pool_of_unlabeled_samples=75):
         self.inside_model = inside_model
         self.outside_model = outside_model
 
@@ -104,37 +104,19 @@ class CoTrainingClassifier:
         self.inside_model.fit(inside_string[labeled_samples], y[labeled_samples])
         self.outside_model.fit(outside_string[labeled_samples], y[labeled_samples])
 
-    # TODO: Move this outside of the class into a util file.
-    def supports_proba(self, clf, x):
-        """Checks if a given classifier supports the 'predict_proba' method, given a single vector x"""
-        try:
-            clf.predict_proba([x])
-            return True
-        except:
-            return False
-
     def predict(self, inside_strings, outside_strings):
         inside_preds = self.inside_model.predict(inside_strings)
         outside_preds = self.outside_model.predict(outside_strings)
-
-        proba_supported = self.supports_proba(self.inside_model, inside_strings[0]) and self.supports_proba(self.outside_model, outside_strings[0])
 
         # fill y_pred with -1 so we can identify the samples in which the classifiers failed to agree
         y_pred = np.asarray([-1] * inside_strings.shape[0])
 
         for i, (inside_pred, outside_pred) in enumerate(zip(inside_preds, outside_preds)):
-            if inside_pred == outside_pred:
-                y_pred[i] = inside_pred
-            elif proba_supported:
-                inside_probs = self.inside_model.predict_proba([inside_strings[i]])[0]
-                outside_probs = self.outside_model.predict_proba([outside_strings[i]])[0]
-                sum_y_probs = [prob1 + prob2 for (prob1, prob2) in zip(inside_probs, outside_probs)]
-                max_sum_prob = max(sum_y_probs)
-                y_pred[i] = sum_y_probs.index(max_sum_prob)
-
-            else:
-                # the classifiers disagree and don't support probability, so we guess
-                y_pred[i] = random.randint(0, 1)
+            inside_probs = self.inside_model.predict_proba([inside_strings[i]])[0]
+            outside_probs = self.outside_model.predict_proba([outside_strings[i]])[0]
+            sum_y_probs = [prob1 + prob2 for (prob1, prob2) in zip(inside_probs, outside_probs)]
+            max_sum_prob = max(sum_y_probs)
+            y_pred[i] = sum_y_probs.index(max_sum_prob)
 
         # check that we did everything right
         assert not (-1 in y_pred)
@@ -155,3 +137,9 @@ class CoTrainingClassifier:
         _epsilon = 0.0001
         assert all(abs(sum(y_dist) - 1) <= _epsilon for y_dist in y_proba)
         return y_proba
+
+    
+if __name__ == "__main__":
+    
+    ptb = PTBDataset(data_path=PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH)
+    train, validation = ptb.train_validation_split(seed=42)

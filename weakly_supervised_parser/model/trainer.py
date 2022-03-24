@@ -108,7 +108,7 @@ class InsideOutsideStringClassifier:
             return softmax(self.model.run(None, inputs)[0], axis=1)
 
     def predict_proba(self, spans):
-        batches = 1000
+        batches = 100
         if spans.shape[0] > batches:
             output = []
             span_batches = np.array_split(spans, spans.shape[0] // batches)

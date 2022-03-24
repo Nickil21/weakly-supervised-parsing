@@ -44,15 +44,12 @@ def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_row
         if train_index == num_samples:
             break
             
-    df_out = pd.concat(lst).sample(frac=1., random_state=42)
-    df_out.reset_index(drop=True, inplace=True)
-    least_confident_preds_idx = df_out[df_out["label"] == -1].index.values
-    most_confident_distituent_preds_idx = df_out[df_out["label"] == 0].index.values
-    most_confident_constituent_preds_idx = df_out[df_out["label"] == 1].index.values
-    valid_idx = np.concatenate((most_confident_constituent_preds_idx[:num_valid_rows // 4], most_confident_distituent_preds_idx[:num_valid_rows // 2]))
-    train_idx = [index for index in df_out.index.tolist() if index not in valid_idx]
+    df_out = pd.concat(lst).sample(frac=1., random_state=42).reset_index(drop=True)
+    valid_idx = np.concatenate((df_out[df_out["label"] == 1].index.values[:int(num_valid_rows // 4)], 
+                                df_out[df_out["label"] == 0].index.values[:int(num_valid_rows // (4/3))]))
     valid_df = df_out.loc[valid_idx]
-    train_df = df_out.loc[np.concatenate((train_idx, least_confident_preds_idx))]
+    train_idx = df_out.loc[~df.index.isin(valid_idx)]
+    train_df = df_out.loc[np.concatenate((train_idx, df_out[df_out["label"] == -1].index.values))]
     return train_df, valid_df
 
 
@@ -79,6 +76,9 @@ class SelfTrainingClassifier:
                               max_epochs=10,
                               outputdir=INSIDE_MODEL_PATH,
                               filename="inside_model_self_train_0")
+        
+        self.inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + f"inside_model_self_train_0.onnx",               
+                                     providers="CUDAExecutionProvider")
         
         unlabeledy = self.inside_model.predict(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
         unlabeledprob = self.inside_model.predict_proba(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
@@ -118,21 +118,27 @@ if __name__ == "__main__":
     # instantiate
     inside_model = InsideOutsideStringClassifier(model_name_or_path="roberta-base")
 
-#     # train
-#     inside_model.fit( train_df=train, 
-#                       eval_df=validation, 
-#                       train_batch_size=32,
-#                       eval_batch_size=32,
-#                       max_epochs=10,
-#                       use_gpu=True,
-#                       outputdir=INSIDE_MODEL_PATH,
-#                       filename="inside_model")
+    # train
+    inside_model.fit( train_df=train, 
+                      eval_df=validation, 
+                      train_batch_size=32,
+                      eval_batch_size=32,
+                      max_epochs=10,
+                      use_gpu=True,
+                      outputdir=INSIDE_MODEL_PATH,
+                      filename="inside_model")
     
     # load trained T5 model
     inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
     
     # predict on train
     newtrain, newvalid = prepare_data_self_train(model=inside_model, threshold=0.99, num_samples=1000, num_valid_rows=10000)
+    
+    newtrain.to_csv("newtrain.csv", index=False)
+    newvalid.to_csv("newvalid.csv", index=False)
+
+    newtrain = pd.read_csv("newtrain.csv")
+    newvalid = pd.read_csv("newvalid.csv")
     
     print(newtrain.shape)
     print(newtrain["label"].value_counts())
