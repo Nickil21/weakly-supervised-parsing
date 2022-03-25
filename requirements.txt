@@ -1,0 +1,14 @@
+pandas==1.4.1
+scikit-learn==1.0.2
+nltk==3.7
+torch==1.10.2
+pytorch-lightning==1.5.10
+transformers==4.17.0
+datasets==1.18.2
+onnxruntime-gpu==1.10.0
+
+# Testing
+coverage
+codecov>=2.1
+pytest>=3.0.5
+pytest-cov
