@@ -5,3 +5,7 @@ torch==1.10.2
 pytorch-lightning==1.5.10
 transformers==4.17.0
 onnxruntime-gpu==1.10.0
+coverage
+codecov>=2.1
+pytest>=3.0.5
+pytest-cov
