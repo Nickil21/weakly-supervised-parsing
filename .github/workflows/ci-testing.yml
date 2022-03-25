@@ -24,18 +24,18 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-      - name: Set up Python ${{ matrix.python }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python }}
+    - name: Set up Python ${{ matrix.python }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python }}
 
     - name: Cache Python dependencies
       uses: actions/cache@v2
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-${{ matrix.python }}-pip-${{ hashFiles('**/setup.py') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.python }}-pip-
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-${{ matrix.python }}-pip-${{ hashFiles('**/setup.py') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.python }}-pip-
 
     - name: Install dependencies
       run: |
@@ -44,26 +44,27 @@ jobs:
       shell: bash
 
     - name: Cache datasets
-        uses: actions/cache@v2
-        with:
-          path: ~/datasets
-          key: ${{ runner.os }}
+      uses: actions/cache@v2
+      with:
+        path: ~/datasets
+        key: ${{ runner.os }}
 
-      - name: pytest
-        run: pytest --cov=solo tests/
+    - name: pytest
+      run: pytest --cov=solo tests/
 
-      - name: Statistics
-        if: success()
-        run: |
-          coverage report
-          coverage xml
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v1
-        if: always()
-        continue-on-error: true
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          file: coverage.xml
-          flags: cpu
-          name: Coverage
-          fail_ci_if_error: false
+    - name: Statistics
+      if: success()
+      run: |
+        coverage report
+        coverage xml
+        
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v1
+      if: always()
+      continue-on-error: true
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: coverage.xml
+        flags: cpu
+        name: Coverage
+        fail_ci_if_error: false
