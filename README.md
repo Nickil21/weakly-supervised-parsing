@@ -5,7 +5,7 @@
 [![Conference](http://img.shields.io/badge/ACL%20Findings-2022-ed1c24.svg)](https://arxiv.org/abs/2110.02283)
 [![CI testing](https://github.com/Nickil21/weakly-supervised-parsing/actions/workflows/ci-testing.yml/badge.svg)](https://github.com/Nickil21/weakly-supervised-parsing/actions/workflows/ci-testing.yml)
     
-![Block Diagram](https://nickilmaveli.com/assets/images/publications/mscr_thesis.png)
+![Block Diagram](block_diagram.png)
 
 </div>
 
