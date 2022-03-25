@@ -50,7 +50,7 @@ jobs:
         key: ${{ runner.os }}
 
     - name: pytest
-      run: pytest --cov=solo tests/
+      run: pytest --cov=solo weakly_supervised_parser/tests/
 
     - name: Statistics
       if: success()
