@@ -48,7 +48,7 @@ def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_row
     valid_idx = np.concatenate((df_out[df_out["label"] == 1].index.values[:int(num_valid_rows // 4)], 
                                 df_out[df_out["label"] == 0].index.values[:int(num_valid_rows // (4/3))]))
     valid_df = df_out.loc[valid_idx]
-    train_idx = df_out.loc[~df.index.isin(valid_idx)]
+    train_idx = df_out.loc[~df_out.index.isin(valid_idx)].index.values
     train_df = df_out.loc[np.concatenate((train_idx, df_out[df_out["label"] == -1].index.values))]
     return train_df, valid_df
 
@@ -135,11 +135,11 @@ if __name__ == "__main__":
     # load trained T5 model
     inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
     
-#     # predict on train
-#     newtrain, newvalid = prepare_data_self_train(model=inside_model, threshold=0.99, num_samples=1000, num_valid_rows=10000)
+    # predict on train
+    newtrain, newvalid = prepare_data_self_train(model=inside_model, threshold=0.99, num_samples=1000, num_valid_rows=10000)
     
-#     newtrain.to_csv("newtrain.csv", index=False)
-#     newvalid.to_csv("newvalid.csv", index=False)
+    newtrain.to_csv("newtrain.csv", index=False)
+    newvalid.to_csv("newvalid.csv", index=False)
 
     newtrain = pd.read_csv("newtrain.csv")
     newvalid = pd.read_csv("newvalid.csv")
