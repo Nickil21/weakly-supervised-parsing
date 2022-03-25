@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest] # macos-latest
         python: [3.8, 3.9]
 
     # Timeout: https://stackoverflow.com/a/59076067/4521646
@@ -49,8 +49,8 @@ jobs:
         path: ~/datasets
         key: ${{ runner.os }}
 
-    - name: pytest
-      run: pytest --cov=solo weakly_supervised_parser/tests/
+#     - name: pytest
+#       run: pytest --cov=solo weakly_supervised_parser/tests/
 
     - name: Statistics
       if: success()
