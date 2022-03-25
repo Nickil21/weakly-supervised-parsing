@@ -10,12 +10,12 @@ from weakly_supervised_parser.utils.prepare_dataset import PTBDataset, DataLoade
 from weakly_supervised_parser.inference import process_test_sample
 
 
-def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_rows=1000):
+def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_rows=1000, seed=42):
     train_sentences = DataLoaderHelper(input_file_object=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
     train_gold_file_path = PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
     lst = []
     for train_index, train_sentence in enumerate(train_sentences):
-        best_parse = process_test_sample(train_index, train_sentence, train_gold_file_path, model=inside_model, batch_size=128)
+        best_parse = process_test_sample(train_index, train_sentence, train_gold_file_path, model=inside_model)
         
         best_parse_get_constituents = get_constituents(best_parse)
         best_parse_get_distituents = get_distituents(best_parse)
@@ -44,7 +44,7 @@ def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_row
         if train_index == num_samples:
             break
             
-    df_out = pd.concat(lst).sample(frac=1., random_state=42).reset_index(drop=True)
+    df_out = pd.concat(lst).sample(frac=1., random_state=seed).reset_index(drop=True)
     valid_idx = np.concatenate((df_out[df_out["label"] == 1].index.values[:int(num_valid_rows // 4)], 
                                 df_out[df_out["label"] == 0].index.values[:int(num_valid_rows // (4/3))]))
     valid_df = df_out.loc[valid_idx]
@@ -73,6 +73,7 @@ class SelfTrainingClassifier:
                               eval_df=valid_inside,
                               train_batch_size=32,
                               eval_batch_size=32,
+                              learning_rate=2e-6,
                               max_epochs=10,
                               outputdir=INSIDE_MODEL_PATH,
                               filename="inside_model_self_train_0")
@@ -96,6 +97,7 @@ class SelfTrainingClassifier:
                                   eval_df=valid_inside,
                                   train_batch_size=32,
                                   eval_batch_size=32,
+                                  learning_rate=2e-6,
                                   max_epochs=10,
                                   outputdir=INSIDE_MODEL_PATH,
                                   filename=f"inside_model_self_train_{idx+1}")
@@ -116,26 +118,28 @@ if __name__ == "__main__":
     train, validation = ptb.train_validation_split(seed=42)
     
     # instantiate
-    inside_model = InsideOutsideStringClassifier(model_name_or_path="roberta-base")
+    inside_model = InsideOutsideStringClassifier(model_name_or_path="roberta-base", max_seq_length=256)
 
-    # train
-    inside_model.fit( train_df=train, 
-                      eval_df=validation, 
-                      train_batch_size=32,
-                      eval_batch_size=32,
-                      max_epochs=10,
-                      use_gpu=True,
-                      outputdir=INSIDE_MODEL_PATH,
-                      filename="inside_model")
+#     # train
+#     inside_model.fit( train_df=train, 
+#                       eval_df=validation, 
+#                       train_batch_size=32,
+#                       eval_batch_size=32,
+#                       max_epochs=10,
+#                       learning_rate=2e-6,
+#                       use_gpu=True,
+#                       dataloader_num_workers=16,
+#                       outputdir=INSIDE_MODEL_PATH,
+#                       filename="inside_model")
     
     # load trained T5 model
     inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
     
-    # predict on train
-    newtrain, newvalid = prepare_data_self_train(model=inside_model, threshold=0.99, num_samples=1000, num_valid_rows=10000)
+#     # predict on train
+#     newtrain, newvalid = prepare_data_self_train(model=inside_model, threshold=0.99, num_samples=1000, num_valid_rows=10000)
     
-    newtrain.to_csv("newtrain.csv", index=False)
-    newvalid.to_csv("newvalid.csv", index=False)
+#     newtrain.to_csv("newtrain.csv", index=False)
+#     newvalid.to_csv("newvalid.csv", index=False)
 
     newtrain = pd.read_csv("newtrain.csv")
     newvalid = pd.read_csv("newvalid.csv")

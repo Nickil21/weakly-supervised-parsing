@@ -42,7 +42,7 @@ class InsideOutsideStringClassifier:
         accelerator: str = "auto",
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
-        learning_rate: float = 3e-6,
+        learning_rate: float = 2e-5,
         max_epochs: int = 10,
         dataloader_num_workers: int = 32,
         seed: int = 42
@@ -107,11 +107,10 @@ class InsideOutsideStringClassifier:
         with torch.no_grad():
             return softmax(self.model.run(None, inputs)[0], axis=1)
 
-    def predict_proba(self, spans):
-        batches = 100
-        if spans.shape[0] > batches:
+    def predict_proba(self, spans, predict_batch_size=256):
+        if spans.shape[0] > predict_batch_size:
             output = []
-            span_batches = np.array_split(spans, spans.shape[0] // batches)
+            span_batches = np.array_split(spans, spans.shape[0] // predict_batch_size)
             for span_batch in span_batches:
                 output.extend(self.process_spans(span_batch))
             return np.vstack(output)

@@ -20,8 +20,8 @@ class Predictor:
         self.sentence = sentence
         self.sentence_list = sentence.split()
 
-    def obtain_best_parse(self, model, batch_size, return_df=False):
-        unique_tokens_flag, span_scores, df = PopulateCKYChart(sentence=self.sentence).fill_chart(model=model, batches=batch_size)
+    def obtain_best_parse(self, model, return_df=False):
+        unique_tokens_flag, span_scores, df = PopulateCKYChart(sentence=self.sentence).fill_chart(model=model)
 
         if unique_tokens_flag:
             best_parse = "(S " + " ".join(["(S " + item  + ")" for item in self.sentence_list]) + ")"
@@ -34,8 +34,8 @@ class Predictor:
         return best_parse
         
     
-def process_test_sample(index, sentence, gold_file_path, model, batch_size):
-    best_parse = Predictor(sentence=sentence).obtain_best_parse(model=model, batch_size=batch_size) 
+def process_test_sample(index, sentence, gold_file_path, model):
+    best_parse = Predictor(sentence=sentence).obtain_best_parse(model=model) 
     gold_standard = DataLoaderHelper(input_file_object=gold_file_path)
     sentence_f1 = calculate_F1_for_spans(tree_to_spans(gold_standard[index]), tree_to_spans(best_parse))
     print("Index: {} <> F1: {:.2f}".format(index, sentence_f1))
@@ -69,7 +69,7 @@ def main():
         test_sentences = DataLoaderHelper(input_file_object=PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
         test_gold_file_path = PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
         for test_index, test_sentence in enumerate(test_sentences):
-            best_parse = process_test_sample(test_index, test_sentence, test_gold_file_path, model=inside_model, batch_size=100)
+            best_parse = process_test_sample(test_index, test_sentence, test_gold_file_path, model=inside_model)
             out_file.write(best_parse + "\n")
 
         

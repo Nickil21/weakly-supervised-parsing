@@ -10,7 +10,7 @@ class LightningModel(LightningModule):
         self, 
         model_name_or_path: str, 
         num_labels: int = 2,
-        lr: float = 3e-6, 
+        lr: float = 2e-5, 
         train_batch_size: int = 32, 
         adam_epsilon=1e-8, 
         warmup_steps: int = 0, 

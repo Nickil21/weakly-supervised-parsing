@@ -37,7 +37,6 @@ class PyTorchDataModule(Dataset):
             max_length=self.max_seq_length,
             padding="max_length",
             truncation=True,
-            return_attention_mask=True,
             add_special_tokens=True,
             return_tensors="pt",
         )
@@ -50,7 +49,6 @@ class PyTorchDataModule(Dataset):
              )
         
         return out
-            
 
 
 class DataModule(LightningDataModule):
