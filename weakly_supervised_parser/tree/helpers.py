@@ -14,8 +14,8 @@ class Tree(object):
 
     def linearize(self):
         if not self.children:
-            return "({} {})".format(self.label, self.word)
-        return "({} {})".format(self.label, " ".join(c.linearize() for c in self.children))
+            return f"({self.label} {self.word})"
+        return f"({self.label} {' '.join(c.linearize() for c in self.children)})"
 
     def spans(self, start = 0):
             if not self.children:
@@ -129,7 +129,7 @@ def recall_by_label(gold_standard, best_parse):
         try:
             leaves1, leaves2 = get_leaves(tree1['tree']), get_leaves(tree2['tree'])
             for l1, l2 in zip(leaves1, leaves2):
-                assert l1.word.lower() == l2.word.lower(), "{} =/= {}".format(l1.word, l2.word)
+                assert l1.word.lower() == l2.word.lower(), f"{l1.word} =/= {l2.word}"
             spanlabels = tree1['tree'].spans_labels()
             spans = tree2['tree'].spans()
 
@@ -158,7 +158,7 @@ def label_recall_output(gold_standard, best_parse):
 
     dct = recall_by_label(gold_standard=gold_standard_trees, best_parse=best_parse_trees)
     labels = ['SBAR', 'NP', 'VP', 'PP', 'ADJP', 'ADVP']
-    l = [{label: "{:.1f}".format(100*recall)} for label, recall in dct.items() if label in labels]
+    l = [{label: f"{recall * 100:.2f}" for label, recall in dct.items() if label in labels]
     df = pd.DataFrame([item.values() for item in l], index=[item.keys() for item in l], columns=['recall'])
     df.index = df.index.map(lambda x: list(x)[0])
     df_out = df.reindex(labels)

@@ -9,15 +9,12 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from transformers import AutoTokenizer
+
 from onnxruntime import InferenceSession
 from scipy.special import softmax
 
-from weakly_supervised_parser.model.load_dataset import PyTorchDataModule
 from weakly_supervised_parser.model.load_dataset import DataModule
 from weakly_supervised_parser.model.span_classifier import LightningModel
-from weakly_supervised_parser.utils.prepare_dataset import PTBDataset
-from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH
-from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
 
 
 class InsideOutsideStringClassifier:
@@ -42,9 +39,9 @@ class InsideOutsideStringClassifier:
         accelerator: str = "auto",
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
-        learning_rate: float = 2e-5,
+        learning_rate: float = 5e-6,
         max_epochs: int = 10,
-        dataloader_num_workers: int = 32,
+        dataloader_num_workers: int = 16,
         seed: int = 42
     ):
 
@@ -79,7 +76,7 @@ class InsideOutsideStringClassifier:
         train_batch = next(iter(data_module.train_dataloader()))
 
         model.to_onnx(
-            file_path="{}/{}.onnx".format(outputdir, filename),
+            file_path=f"{outputdir}/{filename}.onnx",
             input_sample=(train_batch["input_ids"].cuda(), train_batch["attention_mask"].cuda()),
             export_params=True,
             opset_version=11,
@@ -87,8 +84,8 @@ class InsideOutsideStringClassifier:
             output_names=["output"],
             dynamic_axes={"input": {0: "batch_size"}, "attention_mask": {0: "batch_size"}, "output": {0: "batch_size"}})
 
-    def load_model(self, pre_trained_model_path, providers):
-        self.model = InferenceSession(pre_trained_model_path, providers=[providers])
+    def load_model(self, pre_trained_model_path):
+        self.model = InferenceSession(pre_trained_model_path, providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path, use_fast=True)
 
     def preprocess_function(self, data):
@@ -107,7 +104,7 @@ class InsideOutsideStringClassifier:
         with torch.no_grad():
             return softmax(self.model.run(None, inputs)[0], axis=1)
 
-    def predict_proba(self, spans, predict_batch_size=256):
+    def predict_proba(self, spans, predict_batch_size=128):
         if spans.shape[0] > predict_batch_size:
             output = []
             span_batches = np.array_split(spans, spans.shape[0] // predict_batch_size)
@@ -119,30 +116,3 @@ class InsideOutsideStringClassifier:
     
     def predict(self, spans):
         return self.predict_proba(spans).argmax(axis=1)
-    
-    
-if __name__ == "__main__":
-    
-    # instantiate
-    model = InsideOutsideStringClassifier(model_name_or_path="roberta-base")
-    
-#     ptb = PTBDataset(data_path=PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH)
-#     train, validation = ptb.train_validation_split(seed=42)
-
-#     # train
-#     model.fit(train_df=train, 
-#               eval_df=validation, 
-#               train_batch_size=32,
-#               eval_batch_size=32,
-#               max_epochs=10,
-#               use_gpu=True,
-#               outputdir=INSIDE_MODEL_PATH,
-#               filename="inside_model")
-    
-    # load trained T5 model
-    model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
-
-    # predict
-    df = pd.DataFrame(dict(sentence=["But fund managers say"]))
-                     
-    print(model.predict_proba(spans=df)[:, 1])

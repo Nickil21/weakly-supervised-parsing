@@ -1,17 +1,11 @@
-import random
-import numpy as np
-import pandas as pd
 from argparse import ArgumentParser
 
 from weakly_supervised_parser.utils.prepare_dataset import DataLoaderHelper
 from weakly_supervised_parser.utils.cky_algorithm import get_best_parse
 from weakly_supervised_parser.utils.populate_chart import PopulateCKYChart
 from weakly_supervised_parser.tree.evaluate import calculate_F1_for_spans, tree_to_spans
-from weakly_supervised_parser.tree.helpers import get_constituents, get_distituents
 from weakly_supervised_parser.model.trainer import InsideOutsideStringClassifier
 from weakly_supervised_parser.settings import PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH, PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
-from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH, PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
-from weakly_supervised_parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH
 
 
 class Predictor:
@@ -20,8 +14,8 @@ class Predictor:
         self.sentence = sentence
         self.sentence_list = sentence.split()
 
-    def obtain_best_parse(self, model, return_df=False):
-        unique_tokens_flag, span_scores, df = PopulateCKYChart(sentence=self.sentence).fill_chart(model=model)
+    def obtain_best_parse(self, predict_type, model, return_df=False):
+        unique_tokens_flag, span_scores, df = PopulateCKYChart(sentence=self.sentence).fill_chart(predict_type=predict_type, model=model)
 
         if unique_tokens_flag:
             best_parse = "(S " + " ".join(["(S " + item  + ")" for item in self.sentence_list]) + ")"
@@ -34,12 +28,18 @@ class Predictor:
         return best_parse
         
     
-def process_test_sample(index, sentence, gold_file_path, model):
-    best_parse = Predictor(sentence=sentence).obtain_best_parse(model=model) 
+def process_test_sample(index, sentence, gold_file_path, predict_type, model, return_df=False):
+    if return_df:
+        best_parse, df = Predictor(sentence=sentence).obtain_best_parse(predict_type=predict_type, model=model, return_df=True) 
+    else:
+        best_parse = Predictor(sentence=sentence).obtain_best_parse(predict_type=predict_type, model=model) 
     gold_standard = DataLoaderHelper(input_file_object=gold_file_path)
     sentence_f1 = calculate_F1_for_spans(tree_to_spans(gold_standard[index]), tree_to_spans(best_parse))
-    print("Index: {} <> F1: {:.2f}".format(index, sentence_f1))
-    return best_parse
+    print(f"Index: {index} <> F1: {sentence_f1:.2f}")
+    if return_df:
+        return best_parse, df
+    else:
+        return best_parse
 
             
 def main():
@@ -48,7 +48,7 @@ def main():
     parser.add_argument("--model_name_or_path", type=str, default="roberta-base",
                        help="Path to the model identifier from huggingface.co/models")
 
-    parser.add_argument("--pre_trained_model_path", type=str, required=True,
+    parser.add_argument("--pre_trained_model_path", type=str,
                        help="Path to the pretrained model")
     
     parser.add_argument("--seed", type=int, default=None,
@@ -58,18 +58,19 @@ def main():
                        help="Path to save the final trees")
 
     parser.add_argument("--max_seq_length", default=256, type=int,
-                       help="The maximum total input sequence length after tokenization")
+                       help="The maximum total input sequence length after tokenization for the inside model")
 
     args = parser.parse_args()
+
     
-    inside_model = InsideOutsideStringClassifier(model_name_or_path=args.model_name_or_path, max_seq_length=args.max_seq_length)
-    inside_model.load_model(pre_trained_model_path=args.pre_trained_model_path, providers="CUDAExecutionProvider")
+    model = InsideOutsideStringClassifier(model_name_or_path=args.model_name_or_path, max_seq_length=args.max_seq_length)
+    model.load_model(pre_trained_model_path=args.pre_trained_model_path)
     
     with open(args.save_path, "w") as out_file:    
         test_sentences = DataLoaderHelper(input_file_object=PTB_TEST_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
         test_gold_file_path = PTB_TEST_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
         for test_index, test_sentence in enumerate(test_sentences):
-            best_parse = process_test_sample(test_index, test_sentence, test_gold_file_path, model=inside_model)
+            best_parse = process_test_sample(test_index, test_sentence, test_gold_file_path, model=model)
             out_file.write(best_parse + "\n")
 
         

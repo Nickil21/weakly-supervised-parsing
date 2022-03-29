@@ -5,7 +5,6 @@ from sklearn.model_selection import train_test_split
 
 from weakly_supervised_parser.utils.process_ptb import punctuation_words, currency_tags_words
 from weakly_supervised_parser.utils.distant_supervision import RuleBasedHeuristic
-from weakly_supervised_parser.settings import INSIDE_BOOTSTRAPPED_DATASET_PATH
 
 
 filterchars = punctuation_words + currency_tags_words

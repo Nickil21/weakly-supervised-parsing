@@ -1,5 +1,3 @@
-from sklearn.linear_model import OrthogonalMatchingPursuitCV
-
 
 class InsideOutside:
     def __init__(self, sentence):

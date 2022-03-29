@@ -62,11 +62,34 @@ Delete the unnecessary PTB files inside the `TEMP/` folder.
 
 ## Train
 
+### Inside Model
+
     python weakly_supervised_parser/train.py \
+            --
             --model_name_or_path roberta-base \
             --seed 42 \
             --filename inside_model \
             --max_seq_length 256
+
+### Inside Model with Self-training
+
+    python weakly_supervised_parser/train.py \
+            --
+            --model_name_or_path roberta-base \
+            --seed 42 \
+            --filename inside_model \
+            --max_seq_length 256
+
+
+### Inside and Outside Model with Co-training
+
+    python weakly_supervised_parser/train.py \
+            --
+            --model_name_or_path roberta-base \
+            --seed 42 \
+            --filename inside_model \
+            --max_seq_length 256
+
 
 ## Inference
 
@@ -76,6 +99,6 @@ Delete the unnecessary PTB files inside the `TEMP/` folder.
             --max_seq_length 200 \
             --save_path TEMP/predictions/english/inside_model_predictions.txt
 
-# Tests
+## Tests
 
     pytest weakly_supervised_parser/tests --disable-pytest-warnings

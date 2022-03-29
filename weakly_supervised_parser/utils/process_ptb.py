@@ -133,7 +133,7 @@ def get_data_ptb(root, output):
                         assert False
 
                 if len(sen_tree.leaves()) < 2:
-                    print("skipping '{}' since length < 2".format(" ".join(sen_tree.leaves())))
+                    print(f"skipping {' '.join(sen_tree.leaves())} since length < 2")
                     continue
 
                 if include_punctuation:

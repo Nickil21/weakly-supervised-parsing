@@ -3,7 +3,7 @@ import numpy as np
 from weakly_supervised_parser.inference import Predictor
 from weakly_supervised_parser.tree.evaluate import calculate_F1_for_spans, tree_to_spans
 from weakly_supervised_parser.model.trainer import InsideOutsideStringClassifier
-from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
+from weakly_supervised_parser.settings import TRAINED_MODEL_PATH
 
 
 validation_sentences = [
@@ -57,10 +57,10 @@ validation_gold_trees = [
 
 def test_inside_model():
     inside_model = InsideOutsideStringClassifier(model_name_or_path="roberta-base", max_seq_length=256)
-    inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
+    inside_model.load_model(pre_trained_model_path=TRAINED_MODEL_PATH + "inside_model.onnx")
     sentences_f1 = []
     for validation_sentence, validation_gold_tree in zip(validation_sentences, validation_gold_trees):
-        best_parse = Predictor(sentence=validation_sentence).obtain_best_parse(model=inside_model) 
+        best_parse = Predictor(sentence=validation_sentence).obtain_best_parse(predict_type="inside", model=inside_model) 
         sentence_f1 = calculate_F1_for_spans(tree_to_spans(validation_gold_tree), tree_to_spans(best_parse))
         sentences_f1.append(sentence_f1)
     assert np.mean(sentences_f1) > 50

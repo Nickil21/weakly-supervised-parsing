@@ -190,7 +190,7 @@ def calculate_evalb_F1_for_file(gold_file, pred_file, len_limit):
     elif len_limit == 10:
         return F1_len_10
     else:
-        raise ValueError("Unexpected len_limit: {}".format(len_limit))
+        raise ValueError(f"Unexpected len_limit: {len_limit}")
 
 
 def calculate_sentence_level_F1_for_file(gold_file, pred_file, len_limit):
@@ -213,8 +213,8 @@ def evaluate_prediction_file(gold_file, pred_file, len_limit):
     # evalb_F1 = calculate_evalb_F1_for_file(gold_file, pred_file, len_limit)
 
     print("=====> Evaluation Results <=====")
-    print("Length constraint: {}".format(len_limit))
-    print("Micro F1: {:.2f}, Macro F1: {:.2f}".format(corpus_F1, sentence_F1)) #, evalb_F1))
+    print(f"Length constraint: f{len_limit}")
+    print(f"Micro F1: {corpus_F1:.2f}, Macro F1: {sentence_F1:.2f}")  #, evalb_F1))
     print("=====> Evaluation Results <=====")
 
 

@@ -1,9 +1,76 @@
 import random
 import numpy as np
+import pandas as pd
 
+from sklearn.model_selection import train_test_split
+
+from weakly_supervised_parser.settings import PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
+from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH
+from weakly_supervised_parser.utils.prepare_dataset import DataLoaderHelper
+from weakly_supervised_parser.inference import process_test_sample
+
+
+def prepare_outside_strings(inside_model, upper_threshold, lower_threshold, num_train_samples, seed):
+    train_sentences = DataLoaderHelper(input_file_object=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
+    train_gold_file_path = PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
+    lst = []
+    for train_index, train_sentence in enumerate(train_sentences):
+        best_parse, df = process_test_sample(train_index, train_sentence, train_gold_file_path, predict_type="inside", model=inside_model, return_df=True)
+        
+        outside_constituent_samples = pd.DataFrame(dict(sentence=df.loc[df["scores"] > upper_threshold, "outside_sentence"].values,
+                                                        label=1)
+                                                  )
+        
+        outside_distituent_samples = pd.DataFrame(dict(sentence=df.loc[df["scores"] < lower_threshold, "outside_sentence"].values, 
+                                                       label=0)
+                                                 )
+        
+        lst.append(pd.concat([outside_constituent_samples, outside_distituent_samples]))
+        
+        if train_index == num_train_samples:
+            break
+            
+    df_outside = pd.concat(lst, ignore_index=True)
+    df_outside.drop_duplicates(subset=["sentence"], inplace=True)
+    df_outside.reset_index(drop=True, inplace=True)
+    train_outside, validation_outside = train_test_split(df_outside, test_size=0.5, random_state=seed, shuffle=True)
+    return train_outside, validation_outside
+
+
+def prepare_data_for_co_training(inside_model, outside_model, upper_threshold, lower_threshold, seed):
+     train_sentences = DataLoaderHelper(input_file_object=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
+     train_gold_file_path = PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
+     
+     for train_index, train_sentence in enumerate(train_sentences):
+        _, df_inside = process_test_sample(train_index, train_sentence, train_gold_file_path, predict_type="inside", model=inside_model, return_df=True)
+        _, df_outside = process_test_sample(train_index, train_sentence, train_gold_file_path, predict_type="outside", model=outside_model, return_df=True)
+
+        outside_constituent_from_most_confident_inside = df_inside.loc[df_inside["scores"] > upper_threshold, "outside_sentence"].values
+        outside_distituent_from_most_confident_inside = df_inside.loc[df_inside["scores"] < lower_threshold, "outside_sentence"].values
+
+        inside_constituent_from_most_confident_outside = df_outside.loc[df_outside["scores"] > upper_threshold, "inside_sentence"].values
+        inside_distituent_from_most_confident_outside = df_outside.loc[df_outside["scores"] < lower_threshold, "inside_sentence"].values
+
+        outside_from_most_confident_inside = pd.DataFrame(dict(sentence=outside_constituent_from_most_confident_inside, label=1,
+                                                               sentence=outside_distituent_from_most_confident_inside, label=0)
+                                                               )
+
+        inside_from_most_confident_outside = pd.DataFrame(dict(sentence=inside_constituent_from_most_confident_outside, label=1,
+                                                               sentence=inside_distituent_from_most_confident_outside, label=0))
+
+        return inside_from_most_confident_outside.sample(frac=1., random_state=seed), outside_from_most_confident_inside.sample(frac=1., random_state=seed)
+        
 
 class CoTrainingClassifier:
-    def __init__(self, inside_model, outside_model, num_iterations=5, pool_of_unlabeled_samples=75):
+    def __init__(
+        self, 
+        inside_model, 
+        outside_model, 
+        pos: int = -1, 
+        neg: int = -1, 
+        num_iterations: int = 2, 
+        pool_of_unlabeled_samples: int = 1000
+        ):
         self.inside_model = inside_model
         self.outside_model = outside_model
 
@@ -98,30 +165,9 @@ class CoTrainingClassifier:
                 add_counter += 1
                 U_.append(unlabeled_samples.pop())
 
-            # TODO: Handle the case where the classifiers fail to agree on any of the samples (i.e. both n and p are empty)
-
         # let's fit our final model
         self.inside_model.fit(inside_string[labeled_samples], y[labeled_samples])
         self.outside_model.fit(outside_string[labeled_samples], y[labeled_samples])
-
-    def predict(self, inside_strings, outside_strings):
-        inside_preds = self.inside_model.predict(inside_strings)
-        outside_preds = self.outside_model.predict(outside_strings)
-
-        # fill y_pred with -1 so we can identify the samples in which the classifiers failed to agree
-        y_pred = np.asarray([-1] * inside_strings.shape[0])
-
-        for i, (inside_pred, outside_pred) in enumerate(zip(inside_preds, outside_preds)):
-            inside_probs = self.inside_model.predict_proba([inside_strings[i]])[0]
-            outside_probs = self.outside_model.predict_proba([outside_strings[i]])[0]
-            sum_y_probs = [prob1 + prob2 for (prob1, prob2) in zip(inside_probs, outside_probs)]
-            max_sum_prob = max(sum_y_probs)
-            y_pred[i] = sum_y_probs.index(max_sum_prob)
-
-        # check that we did everything right
-        assert not (-1 in y_pred)
-
-        return y_pred
 
     def predict_proba(self, inside_strings, outside_strings):
         """Predict the probability of the samples belonging to each class."""
@@ -137,9 +183,3 @@ class CoTrainingClassifier:
         _epsilon = 0.0001
         assert all(abs(sum(y_dist) - 1) <= _epsilon for y_dist in y_proba)
         return y_proba
-
-    
-if __name__ == "__main__":
-    
-    ptb = PTBDataset(data_path=PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH)
-    train, validation = ptb.train_validation_split(seed=42)

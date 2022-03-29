@@ -2,15 +2,14 @@ import pandas as pd
 import numpy as np
 
 from weakly_supervised_parser.tree.helpers import get_constituents, get_distituents
-from weakly_supervised_parser.settings import INSIDE_MODEL_PATH
+from weakly_supervised_parser.settings import TRAINED_MODEL_PATH
 from weakly_supervised_parser.settings import PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
-from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH, PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH
-from weakly_supervised_parser.model.trainer import InsideOutsideStringClassifier
-from weakly_supervised_parser.utils.prepare_dataset import PTBDataset, DataLoaderHelper
+from weakly_supervised_parser.settings import PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH
+from weakly_supervised_parser.utils.prepare_dataset import DataLoaderHelper
 from weakly_supervised_parser.inference import process_test_sample
 
 
-def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_rows=1000, seed=42):
+def prepare_data_for_self_training(inside_model, train_initial, valid_initial, threshold, num_train_rows, num_valid_examples, seed):
     train_sentences = DataLoaderHelper(input_file_object=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
     train_gold_file_path = PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
     lst = []
@@ -21,12 +20,12 @@ def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_row
         best_parse_get_distituents = get_distituents(best_parse)
         
         if best_parse_get_constituents:
-            constituents_proba = model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_constituents)))[:, 1]
+            constituents_proba = inside_model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_constituents)))[:, 1]
             df_constituents = pd.DataFrame({"sentence": best_parse_get_constituents, "label": constituents_proba})
             df_constituents["label"] = np.where(df_constituents["label"] > threshold, 1, -1)
         
         if best_parse_get_distituents:
-            distituents_proba = model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_distituents)))[:, 0]
+            distituents_proba = inside_model.predict_proba(pd.DataFrame(dict(sentence=best_parse_get_distituents)))[:, 0]
             df_distituents = pd.DataFrame({"sentence": best_parse_get_distituents, "label": distituents_proba})
             df_distituents["label"] = np.where(df_distituents["label"] > threshold, 0, -1)
             
@@ -41,26 +40,37 @@ def prepare_data_self_train(model, threshold=0.99, num_samples=10, num_valid_row
            
         lst.append(out)
         
-        if train_index == num_samples:
+        if train_index == num_train_rows:
             break
             
-    df_out = pd.concat(lst).sample(frac=1., random_state=seed).reset_index(drop=True)
-    valid_idx = np.concatenate((df_out[df_out["label"] == 1].index.values[:int(num_valid_rows // 4)], 
-                                df_out[df_out["label"] == 0].index.values[:int(num_valid_rows // (4/3))]))
+    df_out = pd.concat(lst).sample(frac=1., random_state=seed)
+    df_out.drop_duplicates(subset=["sentence"], inplace=True)
+    df_out.reset_index(drop=True, inplace=True)
+    valid_idx = np.concatenate((df_out[df_out["label"] == 1].index.values[:int(num_valid_examples // 4)], 
+                                df_out[df_out["label"] == 0].index.values[:int(num_valid_examples // (4/3))]))
     valid_df = df_out.loc[valid_idx]
     train_idx = df_out.loc[~df_out.index.isin(valid_idx)].index.values
     train_df = df_out.loc[np.concatenate((train_idx, df_out[df_out["label"] == -1].index.values))]
-    return train_df, valid_df
+    
+    train_augmented = pd.concat([train_initial, train_df]).drop_duplicates(subset=["sentence"])
+    valid_augmented = pd.concat([valid_initial, valid_df]).drop_duplicates(subset=["sentence"])
+    
+    return train_augmented, valid_augmented
 
 
 class SelfTrainingClassifier:
     
-    def __init__(self, inside_model, num_iterations=5, prob_threshold=0.99):
+    def __init__(
+        self, 
+        inside_model, 
+        num_iterations: int = 5, 
+        prob_threshold: float = 0.99
+        ):
         self.inside_model = inside_model
         self.num_iterations = num_iterations
         self.prob_threshold = prob_threshold 
         
-    def fit(self, train_inside, valid_inside): # -1 for unlabeled
+    def fit(self, train_inside, valid_inside, train_batch_size, eval_batch_size, learning_rate, max_epochs, dataloader_num_workers): # -1 for unlabeled
         inside_strings = train_inside["sentence"].values
         labels = train_inside["label"].values
         unlabeled_inside_strings = inside_strings[labels == -1]
@@ -71,15 +81,15 @@ class SelfTrainingClassifier:
         
         self.inside_model.fit(train_df=train_df,
                               eval_df=valid_inside,
-                              train_batch_size=32,
-                              eval_batch_size=32,
-                              learning_rate=2e-6,
-                              max_epochs=10,
-                              outputdir=INSIDE_MODEL_PATH,
-                              filename="inside_model_self_train_0")
+                              train_batch_size=train_batch_size,
+                              eval_batch_size=eval_batch_size,
+                              learning_rate=learning_rate,
+                              max_epochs=max_epochs,
+                              dataloader_num_workers=dataloader_num_workers,
+                              outputdir=TRAINED_MODEL_PATH,
+                              filename="inside_model_self_trained_0")
         
-        self.inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + f"inside_model_self_train_0.onnx",               
-                                     providers="CUDAExecutionProvider")
+        self.inside_model.load_model(pre_trained_model_path=TRAINED_MODEL_PATH + f"inside_model_self_trained_0.onnx")
         
         unlabeledy = self.inside_model.predict(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
         unlabeledprob = self.inside_model.predict_proba(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
@@ -90,64 +100,28 @@ class SelfTrainingClassifier:
             unlabeledy_old = np.copy(unlabeledy)
             uidx = np.where((unlabeledprob[:, 0] > self.prob_threshold) | (unlabeledprob[:, 1] > self.prob_threshold))[0]
             
-            new_train_df = pd.DataFrame(dict(sentence=np.concatenate((labeled_inside_strings, unlabeled_inside_strings[uidx])), 
-                                             label=np.hstack((labeledy, unlabeledy_old[uidx]))))
+            train_df_concat = pd.DataFrame(dict(sentence=np.concatenate((labeled_inside_strings, unlabeled_inside_strings[uidx])), 
+                                                label=np.hstack((labeledy, unlabeledy_old[uidx]))))
+
+            if idx == self.num_iterations - 1:
+                filename = f"inside_model_self_trained"
+            else:
+                filename = f"inside_model_self_trained_{idx+1}"
             
-            self.inside_model.fit(train_df=new_train_df,
+            self.inside_model.fit(train_df=train_df_concat,
                                   eval_df=valid_inside,
-                                  train_batch_size=32,
-                                  eval_batch_size=32,
-                                  learning_rate=2e-6,
-                                  max_epochs=10,
-                                  outputdir=INSIDE_MODEL_PATH,
-                                  filename=f"inside_model_self_train_{idx+1}")
+                                  train_batch_size=train_batch_size,
+                                  eval_batch_size=eval_batch_size,
+                                  learning_rate=learning_rate,
+                                  max_epochs=max_epochs,
+                                  dataloader_num_workers=dataloader_num_workers,
+                                  outputdir=TRAINED_MODEL_PATH,
+                                  filename=filename)
                                            
-            self.inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + f"inside_model_self_train_{idx+1}.onnx",               
-                                         providers="CUDAExecutionProvider")
+            self.inside_model.load_model(pre_trained_model_path=filename)
             
             unlabeledy = self.inside_model.predict(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
             unlabeledprob = self.inside_model.predict_proba(pd.DataFrame(dict(sentence=unlabeled_inside_strings)))
             idx += 1
             
         return self
-
-    
-if __name__ == "__main__":
-    
-    ptb = PTBDataset(data_path=PTB_TRAIN_SENTENCES_WITH_PUNCTUATION_PATH)
-    train, validation = ptb.train_validation_split(seed=42)
-    
-    # instantiate
-    inside_model = InsideOutsideStringClassifier(model_name_or_path="roberta-base", max_seq_length=256)
-
-#     # train
-#     inside_model.fit( train_df=train, 
-#                       eval_df=validation, 
-#                       train_batch_size=32,
-#                       eval_batch_size=32,
-#                       max_epochs=10,
-#                       learning_rate=2e-6,
-#                       use_gpu=True,
-#                       dataloader_num_workers=16,
-#                       outputdir=INSIDE_MODEL_PATH,
-#                       filename="inside_model")
-    
-    # load trained T5 model
-    inside_model.load_model(pre_trained_model_path=INSIDE_MODEL_PATH + "inside_model.onnx", providers="CUDAExecutionProvider")
-    
-    # predict on train
-    newtrain, newvalid = prepare_data_self_train(model=inside_model, threshold=0.99, num_samples=1000, num_valid_rows=10000)
-    
-    newtrain.to_csv("newtrain.csv", index=False)
-    newvalid.to_csv("newvalid.csv", index=False)
-
-    newtrain = pd.read_csv("newtrain.csv")
-    newvalid = pd.read_csv("newvalid.csv")
-    
-    print(newtrain.shape)
-    print(newtrain["label"].value_counts())
-    print(newvalid.shape)
-    print(newvalid["label"].value_counts())
-    
-    clf = SelfTrainingClassifier(inside_model)
-    clf.fit(train_inside=newtrain, valid_inside=newvalid)
