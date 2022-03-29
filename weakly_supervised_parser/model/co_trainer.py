@@ -10,7 +10,7 @@ from weakly_supervised_parser.utils.prepare_dataset import DataLoaderHelper
 from weakly_supervised_parser.inference import process_test_sample
 
 
-def prepare_outside_strings(inside_model, upper_threshold, lower_threshold, num_train_samples, seed):
+def prepare_outside_strings(inside_model, upper_threshold, lower_threshold, num_train_rows, seed):
     train_sentences = DataLoaderHelper(input_file_object=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
     train_gold_file_path = PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
     lst = []
@@ -27,7 +27,7 @@ def prepare_outside_strings(inside_model, upper_threshold, lower_threshold, num_
         
         lst.append(pd.concat([outside_constituent_samples, outside_distituent_samples]))
         
-        if train_index == num_train_samples:
+        if train_index == num_train_rows:
             break
             
     df_outside = pd.concat(lst, ignore_index=True)
@@ -40,7 +40,7 @@ def prepare_outside_strings(inside_model, upper_threshold, lower_threshold, num_
 def prepare_data_for_co_training(inside_model, outside_model, upper_threshold, lower_threshold, seed):
      train_sentences = DataLoaderHelper(input_file_object=PTB_TRAIN_SENTENCES_WITHOUT_PUNCTUATION_PATH).read_lines()
      train_gold_file_path = PTB_TRAIN_GOLD_WITHOUT_PUNCTUATION_ALIGNED_PATH
-     
+
      for train_index, train_sentence in enumerate(train_sentences):
         _, df_inside = process_test_sample(train_index, train_sentence, train_gold_file_path, predict_type="inside", model=inside_model, return_df=True)
         _, df_outside = process_test_sample(train_index, train_sentence, train_gold_file_path, predict_type="outside", model=outside_model, return_df=True)
