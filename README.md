@@ -50,20 +50,13 @@ export NLTK_DATA=./data/RAW/english/
 python -m nltk.downloader ptb
 ```
 
-Download the PTB 3.0 file:
+Download the PTB 3.0 file from [LDC99T42](https://catalog.ldc.upenn.edu/LDC99T42) and place it in `./data/RAW/english/corpora/ptb/treebank_3`. After doing this process, `./data/RAW/english/corpora/ptb/treebank_3/parsed/mrg/wsj` should have folders named 00-24.
+
+To process PTB:
 
 ```shell
-wget <PATH_TO_PTB_3_ZIP_FILE>
-```
-
-Unzip the zip file, extract the contents inside the `data/` folder, and delete the original zip file:
-
-```shell
-unzip ptb3.zip -d ./TEMP/ && rm ptb3.zip
-
-cp -r ./TEMP/ ./data/RAW/english/
-mkdir ./data/RAW/english/corpora/ptb/TEMP/
-mv ./data/RAW/english/TEMP/corrected/ ./data/RAW/english/corpora/ptb/TEMP/
+export PYTHONPATH=${PWD}
+python weakly_supervised_parser/utils/process_ptb.py
 ```
 
 Download the following files from [here](https://drive.google.com/file/d/1m4ssitfkWcDSxAE6UYidrP6TlUctSG2D/view) and place them inside `./data/PROCESSED/english/Yoon_Kim/`:
@@ -71,18 +64,6 @@ Download the following files from [here](https://drive.google.com/file/d/1m4ssit
     ptb-train-gold-filtered.txt
     ptb-valid-gold-filtered.txt
     ptb-test-gold-filtered.txt
-
-To process PTB:
-
-```shell
-python parser/utils/process_ptb.py
-```
-
-Delete the unnecessary PTB files inside the `TEMP/` folder:
-
-```shell
-rm -rf ./TEMP/corrected/
-```
 
 ## Train
 
@@ -138,12 +119,18 @@ pytest weakly_supervised_parser/tests --disable-pytest-warnings
 If you find our paper and code useful in your research, please consider citing:
 
 ```bibtex
-@misc{maveli2022cotraining,
-        title={Co-training an Unsupervised Constituency Parser with Weak Supervision}, 
-        author={Nickil Maveli and Shay B. Cohen},
-        year={2022},
-        eprint={2110.02283},
-        archivePrefix={arXiv},
-        primaryClass={cs.CL}
+@inproceedings{maveli-cohen-2022-co,
+    title = "{C}o-training an {U}nsupervised {C}onstituency {P}arser with {W}eak {S}upervision",
+    author = "Maveli, Nickil  and
+      Cohen, Shay",
+    booktitle = "Findings of the Association for Computational Linguistics: ACL 2022",
+    month = may,
+    year = "2022",
+    address = "Dublin, Ireland",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2022.findings-acl.101",
+    doi = "10.18653/v1/2022.findings-acl.101",
+    pages = "1274--1291",
+    abstract = "We introduce a method for unsupervised parsing that relies on bootstrapping classifiers to identify if a node dominates a specific span in a sentence. There are two types of classifiers, an inside classifier that acts on a span, and an outside classifier that acts on everything outside of a given span. Through self-training and co-training with the two classifiers, we show that the interplay between them helps improve the accuracy of both, and as a result, effectively parse. A seed bootstrapping technique prepares the data to train these classifiers. Our analyses further validate that such an approach in conjunction with weak supervision using prior branching knowledge of a known language (left/right-branching) and minimal heuristics injects strong inductive bias into the parser, achieving 63.1 F$_1$ on the English (PTB) test set. In addition, we show the effectiveness of our architecture by evaluating on treebanks for Chinese (CTB) and Japanese (KTB) and achieve new state-of-the-art results.",
 }
 ```
